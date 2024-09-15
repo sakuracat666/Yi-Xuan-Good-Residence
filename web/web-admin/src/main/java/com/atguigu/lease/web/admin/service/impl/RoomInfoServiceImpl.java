@@ -5,8 +5,11 @@ import com.atguigu.lease.model.enums.ItemType;
 import com.atguigu.lease.web.admin.mapper.RoomInfoMapper;
 import com.atguigu.lease.web.admin.service.*;
 import com.atguigu.lease.web.admin.vo.graph.GraphVo;
+import com.atguigu.lease.web.admin.vo.room.RoomItemVo;
+import com.atguigu.lease.web.admin.vo.room.RoomQueryVo;
 import com.atguigu.lease.web.admin.vo.room.RoomSubmitVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.checkerframework.checker.units.qual.A;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +30,6 @@ public class RoomInfoServiceImpl extends ServiceImpl<RoomInfoMapper, RoomInfo>
 
     @Autowired
     private GraphInfoService graphInfoService;
-
     @Autowired
     private RoomAttrValueService roomAttrValueService;
     @Autowired
@@ -39,6 +41,18 @@ public class RoomInfoServiceImpl extends ServiceImpl<RoomInfoMapper, RoomInfo>
     @Autowired
     private RoomPaymentTypeService roomPaymentTypeService;
 
+
+
+    @Autowired
+    private RoomInfoMapper roomInfoMapper;
+
+
+
+    /**
+     * 保存或更新房间信息
+     *
+     * @param roomSubmitVo
+     */
     @Override
     public void saveOrUpdateRoom(RoomSubmitVo roomSubmitVo) {
         boolean isUpdate = roomSubmitVo.getId() != null;
@@ -47,10 +61,15 @@ public class RoomInfoServiceImpl extends ServiceImpl<RoomInfoMapper, RoomInfo>
         //若为更新操作，则先删除与Room相关的各项信息列表
         if (isUpdate) {
             //1.删除原有graphInfoList
+            // 创建一个Lambda查询包装器，用于GraphInfo实体的查询条件构建
             LambdaQueryWrapper<GraphInfo> graphQueryWrapper = new LambdaQueryWrapper<>();
+            // 添加查询条件，指定图元的类型为房间
             graphQueryWrapper.eq(GraphInfo::getItemType, ItemType.ROOM);
+            // 添加查询条件，匹配特定的房间ID
             graphQueryWrapper.eq(GraphInfo::getItemId, roomSubmitVo.getId());
+            // 执行删除操作，移除符合查询条件的所有图元信息
             graphInfoService.remove(graphQueryWrapper);
+
 
             //2.删除原有roomAttrValueList
             LambdaQueryWrapper<RoomAttrValue> attrQueryMapper = new LambdaQueryWrapper<>();
@@ -80,19 +99,31 @@ public class RoomInfoServiceImpl extends ServiceImpl<RoomInfoMapper, RoomInfo>
         }
 
         //1.保存新的graphInfoList
+        // 获取房间提交视图中的图表数据列表
         List<GraphVo> graphVoList = roomSubmitVo.getGraphVoList();
+        // 判断图表数据列表是否非空
         if (!CollectionUtils.isEmpty(graphVoList)) {
+            // 创建一个用于存储图表信息的数组列表
             ArrayList<GraphInfo> graphInfoList = new ArrayList<>();
+            // 遍历图表数据列表
             for (GraphVo graphVo : graphVoList) {
+                // 创建一个新的图表信息对象
                 GraphInfo graphInfo = new GraphInfo();
+                // 设置图表信息的项目类型为房间
                 graphInfo.setItemType(ItemType.ROOM);
+                // 设置图表信息的项目ID为房间提交视图的ID
                 graphInfo.setItemId(roomSubmitVo.getId());
+                // 设置图表信息的名称
                 graphInfo.setName(graphVo.getName());
+                // 设置图表信息的URL
                 graphInfo.setUrl(graphVo.getUrl());
+                // 将图表信息添加到列表中
                 graphInfoList.add(graphInfo);
             }
+            // 批量保存图表信息
             graphInfoService.saveBatch(graphInfoList);
         }
+
 
         //2.保存新的roomAttrValueList
         List<Long> attrValueIds = roomSubmitVo.getAttrValueIds();
@@ -148,6 +179,17 @@ public class RoomInfoServiceImpl extends ServiceImpl<RoomInfoMapper, RoomInfo>
             }
             roomLeaseTermService.saveBatch(roomLeaseTerms);
         }
+    }
+
+    /**
+     * 根据查询条件分页查询房间列表
+     * @param page
+     * @param queryVo
+     * @return
+     */
+    @Override
+    public IPage<RoomItemVo> pageRoomItemByQuery(IPage<RoomItemVo> page, RoomQueryVo queryVo) {
+        return roomInfoMapper.pageRoomItemByQuery(page, queryVo);
     }
 }
 

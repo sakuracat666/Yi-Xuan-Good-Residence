@@ -10,6 +10,7 @@ import com.atguigu.lease.web.admin.vo.room.RoomItemVo;
 import com.atguigu.lease.web.admin.vo.room.RoomQueryVo;
 import com.atguigu.lease.web.admin.vo.room.RoomSubmitVo;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +36,13 @@ public class RoomController {
     @Operation(summary = "根据条件分页查询房间列表")
     @GetMapping("pageItem")
     public Result<IPage<RoomItemVo>> pageItem(@RequestParam long current, @RequestParam long size, RoomQueryVo queryVo) {
-        return Result.ok();
+        // 创建一个分页对象，用于后续的分页查询
+        // 当前页码由'current'参数指定，每页的大小由'size'参数指定
+        IPage<RoomItemVo> page = new Page<>(current, size);
+        // 调用roomInfoService中的pageRoomItemByQuery方法，根据提供的查询条件(queryVo)进行分页查询
+        // 查询结果存储在result中，包含分页信息及房间物品的详细数据
+        IPage<RoomItemVo> result = roomInfoService.pageRoomItemByQuery(page, queryVo);
+        return Result.ok(result);
     }
 
     @Operation(summary = "根据id获取房间详细信息")

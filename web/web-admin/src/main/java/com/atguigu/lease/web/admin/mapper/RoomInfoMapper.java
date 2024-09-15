@@ -14,6 +14,13 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 */
 public interface RoomInfoMapper extends BaseMapper<RoomInfo> {
 
+    /**
+     * 根据查询条件分页查询房间列表
+     * @param page 分页对象
+     * @param queryVo 查询条件
+     * @return 房间列表
+     */
+    IPage<RoomItemVo> pageRoomItemByQuery(IPage<RoomItemVo> page, RoomQueryVo queryVo);
 }
 
 
