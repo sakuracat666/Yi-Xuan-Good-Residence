@@ -28,4 +28,16 @@ public interface RoomInfoService extends IService<RoomInfo> {
      * @return
      */
     IPage<RoomItemVo> pageRoomItemByQuery(IPage<RoomItemVo> page, RoomQueryVo queryVo);
+
+    /**
+     * 根据id获取房间详细信息
+     * @param id
+     */
+    RoomDetailVo getDetailById(Long id);
+
+    /**
+     * 根据id删除房间信息
+     * @param id
+     */
+    void removeRoomById(Long id);
 }

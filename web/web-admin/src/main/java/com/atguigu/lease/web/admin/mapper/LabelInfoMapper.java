@@ -21,6 +21,13 @@ public interface LabelInfoMapper extends BaseMapper<LabelInfo> {
      * @return
      */
     List<LabelInfo> selectListByItemTypeAndId(ItemType itemType, Long id);
+
+    /**
+     * 根据房间id查询标签列表
+     * @param id
+     * @return
+     */
+    List<LabelInfo> selectListByRoomId(Long id);
 }
 
 
