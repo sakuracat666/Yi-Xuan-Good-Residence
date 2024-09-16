@@ -10,6 +10,7 @@ import com.atguigu.lease.web.admin.service.SystemUserService;
 import com.atguigu.lease.web.admin.vo.system.user.SystemUserItemVo;
 import com.atguigu.lease.web.admin.vo.system.user.SystemUserQueryVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
@@ -95,12 +96,16 @@ public class SystemUserController {
     @DeleteMapping("deleteById")
     @Operation(summary = "根据ID删除后台用户信息")
     public Result removeById(@RequestParam Long id) {
+        systemUserService.removeById(id);
         return Result.ok();
     }
 
     @Operation(summary = "根据ID修改后台用户状态")
     @PostMapping("updateStatusByUserId")
     public Result updateStatusByUserId(@RequestParam Long id, @RequestParam BaseStatus status) {
+        LambdaUpdateWrapper<SystemUser> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(SystemUser::getId, id).set(SystemUser::getStatus, status);
+        systemUserService.update(updateWrapper);
         return Result.ok();
     }
 }
