@@ -14,6 +14,13 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 */
 public interface LeaseAgreementMapper extends BaseMapper<LeaseAgreement> {
 
+    /**
+     * 分页查询租约信息
+     * @param page
+     * @param queryVo
+     * @return
+     */
+    IPage<AgreementVo> pageviewAgreement(IPage<AgreementVo> page, AgreementQueryVo queryVo);
 }
 
 

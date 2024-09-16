@@ -7,7 +7,9 @@ import com.atguigu.lease.model.enums.LeaseStatus;
 import com.atguigu.lease.web.admin.service.LeaseAgreementService;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementQueryVo;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementVo;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,24 +33,31 @@ public class LeaseAgreementController {
     @Operation(summary = "根据条件分页查询租约列表")
     @GetMapping("page")
     public Result<IPage<AgreementVo>> page(@RequestParam long current, @RequestParam long size, AgreementQueryVo queryVo) {
-        return Result.ok();
+        IPage<AgreementVo> page = new Page<>(current, size);
+        IPage<AgreementVo> result = leaseAgreementService.pageviewAgreement(page, queryVo);
+        return Result.ok(result);
     }
 
     @Operation(summary = "根据id查询租约信息")
     @GetMapping(name = "getById")
     public Result<AgreementVo> getById(@RequestParam Long id) {
-        return Result.ok();
+        AgreementVo apartment = leaseAgreementService.getAgreementById(id);
+        return Result.ok(apartment);
     }
 
     @Operation(summary = "根据id删除租约信息")
     @DeleteMapping("removeById")
     public Result removeById(@RequestParam Long id) {
+        leaseAgreementService.removeById(id);
         return Result.ok();
     }
 
     @Operation(summary = "根据id更新租约状态")
     @PostMapping("updateStatusById")
     public Result updateStatusById(@RequestParam Long id, @RequestParam LeaseStatus status) {
+        LambdaUpdateWrapper<LeaseAgreement> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(LeaseAgreement::getId, id).set(LeaseAgreement::getStatus, status);
+        leaseAgreementService.update(wrapper);
         return Result.ok();
     }
 

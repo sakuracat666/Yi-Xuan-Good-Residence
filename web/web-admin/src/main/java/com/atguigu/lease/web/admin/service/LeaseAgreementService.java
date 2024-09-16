@@ -13,4 +13,18 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface LeaseAgreementService extends IService<LeaseAgreement> {
 
+    /**
+     * 分页查询租约信息
+     * @param page 分页对象
+     * @param queryVo 查询条件
+     * @return IPage<AgreementVo>
+     */
+    IPage<AgreementVo> pageviewAgreement(IPage<AgreementVo> page, AgreementQueryVo queryVo);
+
+    /**
+     * 根据id查询租约信息
+     * @param id
+     * @return AgreementVo
+     */
+    AgreementVo getAgreementById(Long id);
 }
