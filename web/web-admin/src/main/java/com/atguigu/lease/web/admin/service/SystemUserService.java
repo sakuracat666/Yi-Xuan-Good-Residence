@@ -13,4 +13,11 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface SystemUserService extends IService<SystemUser> {
 
+    /**
+     * 根据条件分页查询员工信息
+     * @param page
+     * @param queryVo
+     * @return
+     */
+    IPage<SystemUserItemVo> pageSystemUserByQuery(IPage<SystemUser> page, SystemUserQueryVo queryVo);
 }
