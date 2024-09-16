@@ -86,7 +86,10 @@ public class SystemUserController {
     @Operation(summary = "判断后台用户名是否可用")
     @GetMapping("isUserNameAvailable")
     public Result<Boolean> isUsernameExists(@RequestParam String username) {
-        return Result.ok();
+        LambdaQueryWrapper<SystemUser> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(SystemUser::getUsername, username);
+        long count = systemUserService.count(queryWrapper);
+        return Result.ok(count==0);
     }
 
     @DeleteMapping("deleteById")
