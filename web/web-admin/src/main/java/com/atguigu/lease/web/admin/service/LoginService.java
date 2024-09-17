@@ -6,4 +6,9 @@ import com.atguigu.lease.web.admin.vo.system.user.SystemUserInfoVo;
 
 public interface LoginService {
 
+    /**
+     * 获取图形验证码
+     * @return
+     */
+    CaptchaVo getCaptcha();
 }
