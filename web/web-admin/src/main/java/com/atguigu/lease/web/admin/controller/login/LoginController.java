@@ -38,11 +38,20 @@ public class LoginController {
         return Result.ok(jwt);
     }
 
+    /**
+     * 获取登陆用户个人信息
+     *
+     * @return 用户个人信息 如果操作成功，返回包含用户个人信息的结果对象
+     */
     @Operation(summary = "获取登陆用户个人信息")
     @GetMapping("info")
     public Result<SystemUserInfoVo> info() {
+        // 获取当前登录用户的ID
         Long userId = LoginUserHolder.getLoginUser().getUserId();
+        // 通过用户ID获取用户个人信息
         SystemUserInfoVo userInfo = loginService.getLoginUserInfo(userId);
+        // 返回操作成功的结果对象，携带用户个人信息
         return Result.ok(userInfo);
     }
+
 }
