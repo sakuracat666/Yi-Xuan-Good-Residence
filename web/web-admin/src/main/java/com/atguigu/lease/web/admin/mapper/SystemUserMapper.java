@@ -21,6 +21,13 @@ public interface SystemUserMapper extends BaseMapper<SystemUser> {
      * @return
      */
     IPage<SystemUserItemVo> pageSystemUserByQuery(IPage<SystemUser> page, SystemUserQueryVo queryVo);
+
+    /**
+     * 根据用户名查询用户信息
+     * @param username
+     * @return
+     */
+    SystemUser selectOneByUsername(String username);
 }
 
 

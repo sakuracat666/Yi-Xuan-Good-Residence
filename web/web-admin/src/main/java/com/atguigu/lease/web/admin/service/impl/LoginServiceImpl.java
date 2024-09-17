@@ -3,6 +3,7 @@ package com.atguigu.lease.web.admin.service.impl;
 import com.atguigu.lease.common.constant.RedisConstant;
 import com.atguigu.lease.common.exception.LeaseException;
 import com.atguigu.lease.common.result.ResultCodeEnum;
+import com.atguigu.lease.common.utils.JwtUtil;
 import com.atguigu.lease.model.entity.SystemUser;
 import com.atguigu.lease.model.entity.UserInfo;
 import com.atguigu.lease.model.enums.BaseStatus;
@@ -74,10 +75,7 @@ public class LoginServiceImpl implements LoginService {
         }
 
         //4.根据`username`查询数据库，若查询结果为空，则直接响应`账号不存在`；若不为空则进行下一步判断。
-        LambdaQueryWrapper<SystemUser> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(SystemUser::getUsername, loginVo.getUsername());
-        //用户只有一个，所以直接用selectOne
-        SystemUser systemUser = systemUserMapper.selectOne(queryWrapper);
+        SystemUser systemUser = systemUserMapper.selectOneByUsername(loginVo.getUsername());
         if (systemUser==null){
             throw new LeaseException(ResultCodeEnum.ADMIN_ACCOUNT_NOT_EXIST_ERROR);
         }
@@ -95,8 +93,7 @@ public class LoginServiceImpl implements LoginService {
         }
 
         //7.创建JWT，并响应给浏览器。
-
-        return null;
+        return JwtUtil.createToken(systemUser.getId(), systemUser.getUsername());
     }
 
 }
