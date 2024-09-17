@@ -41,6 +41,11 @@ public class JwtUtil {
      * @throws LeaseException 当令牌过期（ExpiredJwtException）或无效（JwtException）时抛出
      */
     public static void parseToken(String token){
+
+        if (token==null){
+            throw new LeaseException(ResultCodeEnum.ADMIN_LOGIN_AUTH);
+        }
+
         try {
             // 初始化Jwt解析器，并设置签名密钥
             JwtParser jwtParser = Jwts.parserBuilder().setSigningKey(secretKey).build();
