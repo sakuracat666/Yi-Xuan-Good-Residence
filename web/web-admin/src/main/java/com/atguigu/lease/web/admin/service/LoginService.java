@@ -11,4 +11,11 @@ public interface LoginService {
      * @return
      */
     CaptchaVo getCaptcha();
+
+    /**
+     * 登录
+     * @param loginVo
+     * @return
+     */
+    String login(LoginVo loginVo);
 }
