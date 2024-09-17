@@ -15,8 +15,10 @@ import com.atguigu.lease.web.admin.vo.login.LoginVo;
 import com.atguigu.lease.web.admin.vo.system.user.SystemUserInfoVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wf.captcha.SpecCaptcha;
+import io.minio.BucketExistsArgs;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.checkerframework.checker.units.qual.A;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -94,6 +96,20 @@ public class LoginServiceImpl implements LoginService {
 
         //7.创建JWT，并响应给浏览器。
         return JwtUtil.createToken(systemUser.getId(), systemUser.getUsername());
+    }
+
+    /**
+     * 获取登录用户信息
+     *
+     * @param userId 用户ID
+     * @return 返回包含用户信息的Vo对象
+     */
+    @Override
+    public SystemUserInfoVo getLoginUserInfo(Long userId) {
+        SystemUserInfoVo systemUserInfoVo = new SystemUserInfoVo();
+        SystemUser systemUser = systemUserMapper.selectById(userId);
+        BeanUtils.copyProperties(systemUser, systemUserInfoVo);
+        return systemUserInfoVo;
     }
 
 }

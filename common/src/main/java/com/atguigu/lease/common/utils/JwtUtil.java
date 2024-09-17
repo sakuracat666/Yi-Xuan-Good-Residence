@@ -40,7 +40,7 @@ public class JwtUtil {
      * @param token 待解析的JWT令牌
      * @throws LeaseException 当令牌过期（ExpiredJwtException）或无效（JwtException）时抛出
      */
-    public static void parseToken(String token){
+    public static Claims parseToken(String token){
 
         if (token==null){
             throw new LeaseException(ResultCodeEnum.ADMIN_LOGIN_AUTH);
@@ -49,8 +49,8 @@ public class JwtUtil {
         try {
             // 初始化Jwt解析器，并设置签名密钥
             JwtParser jwtParser = Jwts.parserBuilder().setSigningKey(secretKey).build();
-            // 执行令牌解析
-            jwtParser.parse(token);
+            Jws<Claims> claimsJws = jwtParser.parseClaimsJws(token);
+            return claimsJws.getBody();
         }catch (ExpiredJwtException e){
             // 当令牌过期时，抛出LeaseException，指示令牌已过期
             throw new LeaseException(ResultCodeEnum.TOKEN_EXPIRED);

@@ -18,4 +18,11 @@ public interface LoginService {
      * @return
      */
     String login(LoginVo loginVo);
+
+    /**
+     * 获取登录用户信息
+     * @param userId
+     * @return
+     */
+    SystemUserInfoVo getLoginUserInfo(Long userId);
 }
