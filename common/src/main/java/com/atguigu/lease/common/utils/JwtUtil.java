@@ -33,32 +33,41 @@ public class JwtUtil {
     }
 
 
+
     /**
      * 解析令牌
-     * 本函数尝试解析给定的JWT令牌如果令牌过期或无效，将抛出相应的异常
      *
-     * @param token 待解析的JWT令牌
-     * @throws LeaseException 当令牌过期（ExpiredJwtException）或无效（JwtException）时抛出
+     * 本函数旨在解析给定的JWT令牌，验证其有效性并提取其中的claims（载荷）部分
+     * 如果令牌为null，抛出LeaseException异常，指示管理员登录认证失败
+     *
+     * @param token 待解析的JWT令牌，不能为空
+     * @return Claims对象，包含解析出的令牌载荷
+     * @throws LeaseException 可能抛出此异常，指示令牌过期或无效
      */
     public static Claims parseToken(String token){
 
+        // 检查令牌是否为null，如果为null，则抛出管理员登录认证失败的异常
         if (token==null){
             throw new LeaseException(ResultCodeEnum.ADMIN_LOGIN_AUTH);
         }
 
+        // 尝试解析令牌
         try {
-            // 初始化Jwt解析器，并设置签名密钥
+            // 使用密钥secretKey初始化JWT解析器jwtParser
             JwtParser jwtParser = Jwts.parserBuilder().setSigningKey(secretKey).build();
+            // 使用jwtParser解析令牌，并获取其中的claims
             Jws<Claims> claimsJws = jwtParser.parseClaimsJws(token);
+            // 返回解析出的claims对象
             return claimsJws.getBody();
-        }catch (ExpiredJwtException e){
-            // 当令牌过期时，抛出LeaseException，指示令牌已过期
+        } catch (ExpiredJwtException e) {
+            // 如果捕获到ExpiredJwtException异常，表示令牌已过期，抛出相应异常
             throw new LeaseException(ResultCodeEnum.TOKEN_EXPIRED);
-        }catch (JwtException e){
-            // 当令牌无效时，抛出LeaseException，指示令牌无效
+        } catch (JwtException e) {
+            // 如果捕获到JwtException异常，表示令牌无效，抛出相应异常
             throw new LeaseException(ResultCodeEnum.TOKEN_INVALID);
         }
     }
+
 
     public static void main(String[] args) {
         System.out.println(createToken(1L,"admin"));
