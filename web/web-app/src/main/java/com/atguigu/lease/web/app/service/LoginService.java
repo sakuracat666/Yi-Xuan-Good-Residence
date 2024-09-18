@@ -1,6 +1,7 @@
 package com.atguigu.lease.web.app.service;
 
 import com.atguigu.lease.web.app.vo.user.LoginVo;
+import com.atguigu.lease.web.app.vo.user.UserInfoVo;
 
 public interface LoginService {
     /**
@@ -15,4 +16,11 @@ public interface LoginService {
      * @return
      */
     String login(LoginVo loginVo);
+
+    /**
+     * 根据用户id获取用户信息
+     * @param userId
+     * @return
+     */
+    UserInfoVo getUserInfoById(Long userId);
 }

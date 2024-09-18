@@ -68,8 +68,13 @@ public class JwtUtil {
         }
     }
 
-
+    /**
+     * 主函数入口
+     * 该方法用于演示如何使用createToken方法生成令牌
+     *
+     * @param args 命令行参数，不是用于此示例程序的功能
+     */
     public static void main(String[] args) {
-        System.out.println(createToken(1L,"admin"));
+        System.out.println(createToken(8L,"18190067037"));
     }
 }

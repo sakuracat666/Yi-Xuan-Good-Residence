@@ -13,6 +13,7 @@ import com.atguigu.lease.web.app.service.LoginService;
 import com.atguigu.lease.web.app.service.SmsService;
 import com.atguigu.lease.web.app.service.UserInfoService;
 import com.atguigu.lease.web.app.vo.user.LoginVo;
+import com.atguigu.lease.web.app.vo.user.UserInfoVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -113,5 +114,13 @@ public class LoginServiceImpl implements LoginService {
         }
 
         return JwtUtil.createToken(userInfo.getId(), userInfo.getPhone());
+    }
+
+
+    @Override
+    public UserInfoVo getUserInfoById(Long userId) {
+        UserInfo userInfo = userInfoMapper.selectById(userId);
+        UserInfoVo userInfoVo = new UserInfoVo(userInfo.getNickname(), userInfo.getAvatarUrl());
+        return userInfoVo;
     }
 }
