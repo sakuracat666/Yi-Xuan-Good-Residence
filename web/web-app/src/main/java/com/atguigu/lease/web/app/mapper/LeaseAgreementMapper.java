@@ -14,6 +14,12 @@ import java.util.List;
 */
 public interface LeaseAgreementMapper extends BaseMapper<LeaseAgreement> {
 
+    /**
+     * 根据手机号查询个人租约信息列表
+     * @param phone
+     * @return
+     */
+    List<AgreementItemVo> listItemByPhone(String phone);
 }
 
 
