@@ -2,6 +2,8 @@ package com.atguigu.lease.web.app.service;
 
 import com.atguigu.lease.model.entity.ApartmentInfo;
 import com.atguigu.lease.web.app.vo.apartment.ApartmentItemVo;
+import com.atguigu.lease.web.app.vo.room.RoomItemVo;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 /**
