@@ -4,6 +4,7 @@ import com.atguigu.lease.model.entity.BrowsingHistory;
 import com.atguigu.lease.web.app.vo.history.HistoryItemVo;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 /**
 * @author liubo
@@ -13,6 +14,13 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 */
 public interface BrowsingHistoryMapper extends BaseMapper<BrowsingHistory> {
 
+    /**
+     * 分页查询浏览记录
+     * @param page 分页对象
+     * @param userId 用户id
+     * @return 分页对象
+     */
+    IPage<HistoryItemVo> pageHistoryItemByUserId(Page<HistoryItemVo> page, Long userId);
 }
 
 

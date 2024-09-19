@@ -1,6 +1,9 @@
 package com.atguigu.lease.web.app.service;
 
 import com.atguigu.lease.model.entity.BrowsingHistory;
+import com.atguigu.lease.web.app.vo.history.HistoryItemVo;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 /**
@@ -9,4 +12,11 @@ import com.baomidou.mybatisplus.extension.service.IService;
 * @createDate 2023-07-26 11:12:39
 */
 public interface BrowsingHistoryService extends IService<BrowsingHistory> {
+    /**
+     * 分页查询浏览历史
+     * @param page 分页对象
+     * @param userId 用户id
+     * @return IPage<HistoryItemVo>
+     */
+    IPage<HistoryItemVo> pageHistoryItemByUserId(Page<HistoryItemVo> page, Long userId);
 }
