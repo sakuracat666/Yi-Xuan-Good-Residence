@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -40,6 +41,7 @@ public class BrowsingHistoryServiceImpl extends ServiceImpl<BrowsingHistoryMappe
      * 如果已经存在，则更新浏览时间以保持历史记录的时效性如果不存在，则创建新的浏览历史记录并插入数据库
      */
     @Override
+    @Async
     public void saveHistory(Long userId, Long id) {
         // 构建查询条件，用于查找特定用户和房间的浏览历史
         LambdaQueryWrapper<BrowsingHistory> queryWrapper = new LambdaQueryWrapper<>();
