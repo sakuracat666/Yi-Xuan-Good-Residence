@@ -14,6 +14,12 @@ import java.util.List;
 */
 public interface FeeValueMapper extends BaseMapper<FeeValue> {
 
+    /**
+     * 根据公寓id查询杂费信息
+     * @param apartmentId
+     * @return
+     */
+    List<FeeValueVo> selectListByApartmentId(Long apartmentId);
 }
 
 

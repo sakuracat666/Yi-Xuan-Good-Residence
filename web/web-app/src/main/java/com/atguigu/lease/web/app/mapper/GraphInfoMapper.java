@@ -15,6 +15,13 @@ import java.util.List;
 */
 public interface GraphInfoMapper extends BaseMapper<GraphInfo> {
 
+    /**
+     * 根据类型和id查询图片列表
+     * @param itemType
+     * @param id
+     * @return
+     */
+    List<GraphVo> selectListByItemTypeAndId(ItemType itemType, Long id);
 }
 
 

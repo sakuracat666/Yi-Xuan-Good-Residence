@@ -14,6 +14,12 @@ import java.util.List;
 */
 public interface AttrValueMapper extends BaseMapper<AttrValue> {
 
+    /**
+     * 根据房间id查询属性值列表
+     * @param id
+     * @return
+     */
+    List<AttrValueVo> selectListByRoomId(Long id);
 }
 
 
