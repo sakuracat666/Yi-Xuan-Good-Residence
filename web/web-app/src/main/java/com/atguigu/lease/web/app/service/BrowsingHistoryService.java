@@ -19,4 +19,11 @@ public interface BrowsingHistoryService extends IService<BrowsingHistory> {
      * @return IPage<HistoryItemVo>
      */
     IPage<HistoryItemVo> pageHistoryItemByUserId(Page<HistoryItemVo> page, Long userId);
+
+    /**
+     * 保存浏览历史
+     * @param userId 用户id
+     * @param id 房源id
+     */
+    void saveHistory(Long userId, Long id);
 }
