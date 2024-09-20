@@ -1,5 +1,6 @@
 package com.atguigu.lease.web.app.service.impl;
 
+import com.atguigu.lease.common.constant.RedisConstant;
 import com.atguigu.lease.common.login.LoginUserHolder;
 import com.atguigu.lease.model.entity.*;
 import com.atguigu.lease.model.enums.ItemType;
@@ -21,6 +22,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -56,6 +59,11 @@ public class RoomInfoServiceImpl extends ServiceImpl<RoomInfoMapper, RoomInfo>
     @Autowired
     private BrowsingHistoryService browsingHistoryService;
 
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+
     @Override
     public IPage<RoomItemVo> pageItem(Page<RoomItemVo> page, RoomQueryVo queryVo) {
         return roomInfoMapper.pageItem(page, queryVo);
@@ -63,39 +71,53 @@ public class RoomInfoServiceImpl extends ServiceImpl<RoomInfoMapper, RoomInfo>
 
     @Override
     public RoomDetailVo getDetailById(Long id) {
-        //1.查询房间信息
-        RoomInfo roomInfo = roomInfoMapper.selectById(id);
-        if (roomInfo == null) {
-            return null;
+
+        // 拼接Redis的键，用于标识房间详情的缓存
+        String key = RedisConstant.APP_ROOM_PREFIX + id;
+        // 从Redis中获取房间详情数据
+        RoomDetailVo roomDetailVo = (RoomDetailVo) redisTemplate.opsForValue().get(key);
+
+
+        //如果redis中没有数据，则从数据库中查询，然后缓存到Redis中
+        if (roomDetailVo == null){
+            //1.查询房间信息
+            RoomInfo roomInfo = roomInfoMapper.selectById(id);
+            if (roomInfo == null) {
+                return null;
+            }
+            //2.查询图片
+            List<GraphVo> graphVoList = graphInfoMapper.selectListByItemTypeAndId(ItemType.ROOM, id);
+            //3.查询租期
+            List<LeaseTerm> leaseTermList = leaseTermMapper.selectListByRoomId(id);
+            //4.查询配套
+            List<FacilityInfo> facilityInfoList = facilityInfoMapper.selectListByRoomId(id);
+            //5.查询标签
+            List<LabelInfo> labelInfoList = labelInfoMapper.selectListByRoomId(id);
+            //6.查询支付方式
+            List<PaymentType> paymentTypeList = paymentTypeMapper.selectListByRoomId(id);
+            //7.查询基本属性
+            List<AttrValueVo> attrValueVoList = attrValueMapper.selectListByRoomId(id);
+            //8.查询杂费信息
+            List<FeeValueVo> feeValueVoList = feeValueMapper.selectListByApartmentId(roomInfo.getApartmentId());
+            //9.查询公寓信息
+            ApartmentItemVo apartmentItemVo = apartmentInfoService.selectApartmentItemVoById(roomInfo.getApartmentId());
+
+            roomDetailVo = new RoomDetailVo();
+            BeanUtils.copyProperties(roomInfo, roomDetailVo);
+
+            roomDetailVo.setApartmentItemVo(apartmentItemVo);
+            roomDetailVo.setGraphVoList(graphVoList);
+            roomDetailVo.setAttrValueVoList(attrValueVoList);
+            roomDetailVo.setFacilityInfoList(facilityInfoList);
+            roomDetailVo.setLabelInfoList(labelInfoList);
+            roomDetailVo.setPaymentTypeList(paymentTypeList);
+            roomDetailVo.setFeeValueVoList(feeValueVoList);
+            roomDetailVo.setLeaseTermList(leaseTermList);
+
+            //缓存到Redis中
+            redisTemplate.opsForValue().set(key, roomDetailVo);
         }
-        //2.查询图片
-        List<GraphVo> graphVoList = graphInfoMapper.selectListByItemTypeAndId(ItemType.ROOM, id);
-        //3.查询租期
-        List<LeaseTerm> leaseTermList = leaseTermMapper.selectListByRoomId(id);
-        //4.查询配套
-        List<FacilityInfo> facilityInfoList = facilityInfoMapper.selectListByRoomId(id);
-        //5.查询标签
-        List<LabelInfo> labelInfoList = labelInfoMapper.selectListByRoomId(id);
-        //6.查询支付方式
-        List<PaymentType> paymentTypeList = paymentTypeMapper.selectListByRoomId(id);
-        //7.查询基本属性
-        List<AttrValueVo> attrValueVoList = attrValueMapper.selectListByRoomId(id);
-        //8.查询杂费信息
-        List<FeeValueVo> feeValueVoList = feeValueMapper.selectListByApartmentId(roomInfo.getApartmentId());
-        //9.查询公寓信息
-        ApartmentItemVo apartmentItemVo = apartmentInfoService.selectApartmentItemVoById(roomInfo.getApartmentId());
 
-        RoomDetailVo roomDetailVo = new RoomDetailVo();
-        BeanUtils.copyProperties(roomInfo, roomDetailVo);
-
-        roomDetailVo.setApartmentItemVo(apartmentItemVo);
-        roomDetailVo.setGraphVoList(graphVoList);
-        roomDetailVo.setAttrValueVoList(attrValueVoList);
-        roomDetailVo.setFacilityInfoList(facilityInfoList);
-        roomDetailVo.setLabelInfoList(labelInfoList);
-        roomDetailVo.setPaymentTypeList(paymentTypeList);
-        roomDetailVo.setFeeValueVoList(feeValueVoList);
-        roomDetailVo.setLeaseTermList(leaseTermList);
 
         //保存浏览历史
         browsingHistoryService.saveHistory(LoginUserHolder.getLoginUser().getUserId(),id);
