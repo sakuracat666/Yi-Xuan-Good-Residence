@@ -61,8 +61,9 @@ public class LoginServiceImpl implements LoginService {
             }
         }
 
-        // 发送验证码到指定手机号
-        smsService.sendCode(phone, code);
+        // TODO发送验证码到指定手机号
+//        smsService.sendCode(phone, code);
+        System.err.println("验证码：" + code);
         // 在Redis中存储验证码，设置过期时间
         redisTemplate.opsForValue().set(key, code, RedisConstant.APP_LOGIN_CODE_TTL_SEC, TimeUnit.SECONDS);
     }
