@@ -22,6 +22,14 @@ spring:
       database: 0
   jackson:
     time-zone: GMT+8
+  ai:
+    openai:
+      api-key: sk-682717e6569a484b9ea9ffaf173c615c
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.7
 #用于打印框架生成的sql语句，便于调试
 mybatis-plus:
   configuration:

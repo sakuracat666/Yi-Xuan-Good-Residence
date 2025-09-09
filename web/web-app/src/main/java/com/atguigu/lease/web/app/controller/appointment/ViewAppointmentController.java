@@ -10,6 +10,7 @@ import com.atguigu.lease.web.app.vo.appointment.AppointmentItemVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,6 +31,7 @@ public class ViewAppointmentController {
         return Result.ok();
     }
 
+    @Scheduled(cron = "0/5 * * * * ?")
     @Operation(summary = "查询个人预约看房列表")
     @GetMapping("listItem")
     public Result<List<AppointmentItemVo>> listItem() {
