@@ -58,9 +58,29 @@ public class ApartmentInfoServiceImpl extends ServiceImpl<ApartmentInfoMapper, A
     @Autowired
     private RoomInfoMapper roomInfoMapper;
 
+    @Autowired
+    private ProvinceInfoMapper provinceInfoMapper;
+    @Autowired
+    private CityInfoMapper cityInfoMapper;
+    @Autowired
+    private DistrictInfoMapper districtInfoMapper;
+
     @Override
     public void saveOrUpdateApartment(ApartmentSubmitVo apartmentSubmitVo) {
         boolean isUpdate = apartmentSubmitVo.getId() != null;
+
+        Long provinceId = apartmentSubmitVo.getProvinceId();
+        ProvinceInfo provinceInfo = provinceInfoMapper.selectById(provinceId);
+        apartmentSubmitVo.setProvinceName(provinceInfo.getName());
+
+        Long cityId = apartmentSubmitVo.getCityId();
+        CityInfo cityInfo = cityInfoMapper.selectById(cityId);
+        apartmentSubmitVo.setCityName(cityInfo.getName());
+
+        Long districtId = apartmentSubmitVo.getDistrictId();
+        DistrictInfo districtInfo = districtInfoMapper.selectById(districtId);
+        apartmentSubmitVo.setDistrictName(districtInfo.getName());
+
         super.saveOrUpdate(apartmentSubmitVo);
 
         if (isUpdate) {

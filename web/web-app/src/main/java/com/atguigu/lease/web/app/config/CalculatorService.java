@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Description;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -40,34 +41,127 @@ public class CalculatorService {
     @Autowired
     private RoomFacilityMapper roomFacilityMapper;
 
-    public record ApartmentOperation(String apartmentName, String introduction, String districtName, String provinceName) {
+    @Autowired
+    private LeaseTermMapper leaseTermMapper;
+
+    @Autowired
+    private PaymentTypeMapper paymentTypeMapper;
+
+    @Autowired
+    private RoomLeaseTermMapper roomLeaseTermMapper;
+
+    @Autowired
+    private RoomPaymentTypeMapper roomPaymentTypeMapper;
+
+    /**
+     * 公寓信息查询参数
+     * @param apartmentName 公寓名称
+     * @param introduction 公寓介绍
+     * @param cityName 城市名称
+     * @param districtName 区域名称
+     * @param provinceName 省份名称
+     */
+    public record ApartmentOperation(String apartmentName, String introduction, String cityName, String districtName, String provinceName) {
 
     }
 
+    /**
+     * 属性查询参数
+     * @param attributeKeyName 属性键名称
+     */
     public record AttrOperation(String attributeKeyName) {
 
     }
 
+    /**
+     * 房间属性值查询参数
+     * @param attributeValueName 属性值名称
+     */
     public record RoomOperation(String attributeValueName) {
 
     }
 
+    /**
+     * 房间状态查询参数
+     * @param roomId 房间ID
+     */
     public record RoomStatus(Long roomId) {
 
     }
 
+    /**
+     * 房间配套信息查询参数
+     * @param roomNumber 房间号
+     */
     public record Facility(Long roomNumber) {
 
     }
 
+    /**
+     * 根据房间ID查询房间信息参数
+     * @param roomId 房间ID
+     */
     public record RoomInfoById(Long roomId) {
 
     }
 
-    public record ApartmentByProvinceNameOrCity(String districtName, String provinceName) {
+    /**
+     * 根据公寓名称查询房间号参数
+     * @param apartmentName 公寓名称
+     */
+    public record RoomsByApartmentName(String apartmentName) {
 
     }
 
+    /**
+     * 根据租金范围查询房间参数
+     * @param minRent 最小租金
+     * @param maxRent 最大租金
+     */
+    public record RoomByRentRange(BigDecimal minRent, BigDecimal maxRent) {
+    }
+
+    /**
+     * 根据付款方式查询房间参数
+     * @param paymentTypeId 付款方式ID
+     */
+    public record RoomByPaymentType(Long paymentTypeId) {
+    }
+
+    /**
+     * 根据租期查询房间参数
+     * @param leaseTermId 租期ID
+     */
+    public record RoomByLeaseTerm(Long leaseTermId) {
+    }
+
+    /**
+     * 根据公寓ID查询可租房源参数
+     * @param apartmentId 公寓ID
+     */
+    public record AvailableRoomsByApartmentId(Long apartmentId) {
+    }
+
+    /**
+     * 根据房间ID查询租期信息参数
+     * @param roomId 房间ID
+     */
+    public record LeaseTermInfo(Long roomId) {
+    }
+
+    /**
+     * 根据房间ID查询付款方式参数
+     * @param roomId 房间ID
+     */
+    public record PaymentTypeInfo(Long roomId) {
+    }
+
+    /**
+     * 根据公寓ID查询公寓详细信息参数
+     * @param apartmentId 公寓ID
+     */
+    public record ApartmentDetailInfo(Long apartmentId) {
+    }
 
     /**
      * 公寓信息查询
@@ -75,16 +169,58 @@ public class CalculatorService {
      * @return
      */
     @Bean
-    @Description("根据公寓名称、区域名称、公寓介绍、查询对应的公寓信息")
-    public Function<ApartmentOperation, ApartmentInfo> apartmentOperation() {
+    @Description("根据公寓名称、省份名称、城市名称、区域名称、公寓介绍、查询对应的公寓信息(省份名称,例如：四川省；城市名称（例如眉山市）；区域名称，例如：东坡区)")
+    public Function<ApartmentOperation, List<ApartmentInfo>> apartmentOperation() {
         return request -> {
             LambdaQueryWrapper<ApartmentInfo> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(ApartmentInfo::getName, request.apartmentName);
-            queryWrapper.eq(ApartmentInfo::getDistrictName, request.districtName);
-            queryWrapper.eq(ApartmentInfo::getIntroduction, request.introduction);
-            queryWrapper.eq(ApartmentInfo::getProvinceName, request.provinceName);
+            if (request.apartmentName() != null && !request.apartmentName().isEmpty()) {
+                queryWrapper.eq(ApartmentInfo::getName, request.apartmentName);
+            }
+            if (request.cityName() != null && !request.cityName().isEmpty()) {
+                queryWrapper.eq(ApartmentInfo::getCityName, request.cityName);
+            }
+            if (request.districtName() != null && !request.districtName().isEmpty()) {
+                queryWrapper.eq(ApartmentInfo::getDistrictName, request.districtName);
+            }
+            if (request.introduction() != null && !request.introduction().isEmpty()) {
+                queryWrapper.eq(ApartmentInfo::getIntroduction, request.introduction);
+            }
+            if (request.provinceName() != null && !request.provinceName().isEmpty()) {
+                queryWrapper.eq(ApartmentInfo::getProvinceName, request.provinceName);
+            }
 
-            return apartmentInfoMapper.selectOne(queryWrapper);
+            return apartmentInfoMapper.selectList(queryWrapper);
+        };
+    }
+
+
+
+    /**
+     * 根据公寓名称查询所有房间号
+     * @return
+     */
+    @Bean
+    @Description("根据公寓名称查询所有房间号")
+    public Function<RoomsByApartmentName, List<String>> roomsByApartmentNameOperation() {
+        return request -> {
+            // 先根据公寓名称查询公寓信息
+            LambdaQueryWrapper<ApartmentInfo> apartmentQueryWrapper = new LambdaQueryWrapper<>();
+            apartmentQueryWrapper.eq(ApartmentInfo::getName, request.apartmentName);
+            ApartmentInfo apartmentInfo = apartmentInfoMapper.selectOne(apartmentQueryWrapper);
+
+            if (apartmentInfo == null) {
+                return new ArrayList<>();
+            }
+
+            // 根据公寓ID查询所有房间
+            LambdaQueryWrapper<RoomInfo> roomQueryWrapper = new LambdaQueryWrapper<>();
+            roomQueryWrapper.eq(RoomInfo::getApartmentId, apartmentInfo.getId());
+            List<RoomInfo> roomInfos = roomInfoMapper.selectList(roomQueryWrapper);
+
+            // 提取房间号
+            return roomInfos.stream()
+                    .map(RoomInfo::getRoomNumber)
+                    .toList();
         };
     }
 
@@ -185,20 +321,131 @@ public class CalculatorService {
             return facilityInfos;
         };
     }
-
+    
     /**
-     * 根据省份或区域名称查询相关的公寓信息
+     * 根据租金范围查询房间
      * @return
      */
     @Bean
-    @Description("根据省份或区域名称查询相关的公寓信息")
-    public Function<ApartmentByProvinceNameOrCity, List<ApartmentInfo>> apartmentByProvinceNameOrCity() {
+    @Description("根据租金范围查询房间")
+    public Function<RoomByRentRange, List<RoomInfo>> roomByRentRangeOperation() {
         return request -> {
-            LambdaQueryWrapper<ApartmentInfo> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(ApartmentInfo::getProvinceName, request.provinceName);
-            queryWrapper.eq(ApartmentInfo::getDistrictName, request.districtName);
-            return apartmentInfoMapper.selectList(queryWrapper);
+            LambdaQueryWrapper<RoomInfo> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.ge(request.minRent != null, RoomInfo::getRent, request.minRent);
+            queryWrapper.le(request.maxRent != null, RoomInfo::getRent, request.maxRent);
+            queryWrapper.eq(RoomInfo::getIsDeleted, 0);
+            return roomInfoMapper.selectList(queryWrapper);
         };
     }
-    
+
+    /**
+     * 根据付款方式查询房间
+     * @return
+     */
+    @Bean
+    @Description("根据付款方式查询房间")
+    public Function<RoomByPaymentType, List<RoomInfo>> roomByPaymentTypeOperation() {
+        return request -> {
+            LambdaQueryWrapper<RoomInfo> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(RoomInfo::getIsDeleted, 0);
+            queryWrapper.inSql(RoomInfo::getId, 
+                "SELECT room_id FROM room_payment_type WHERE payment_type_id = " + request.paymentTypeId() + " AND is_deleted = 0");
+            return roomInfoMapper.selectList(queryWrapper);
+        };
+    }
+
+    /**
+     * 根据租期查询房间
+     * @return
+     */
+    @Bean
+    @Description("根据租期查询房间")
+    public Function<RoomByLeaseTerm, List<RoomInfo>> roomByLeaseTermOperation() {
+        return request -> {
+            LambdaQueryWrapper<RoomInfo> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(RoomInfo::getIsDeleted, 0);
+            queryWrapper.inSql(RoomInfo::getId, 
+                "SELECT room_id FROM room_lease_term WHERE lease_term_id = " + request.leaseTermId() + " AND is_deleted = 0");
+            return roomInfoMapper.selectList(queryWrapper);
+        };
+    }
+
+    /**
+     * 根据公寓ID查询可租房源
+     * @return
+     */
+    @Bean
+    @Description("根据公寓ID查询可租房源")
+    public Function<AvailableRoomsByApartmentId, List<RoomInfo>> availableRoomsByApartmentIdOperation() {
+        return request -> {
+            LambdaQueryWrapper<RoomInfo> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(RoomInfo::getApartmentId, request.apartmentId());
+            queryWrapper.eq(RoomInfo::getIsDeleted, 0);
+            queryWrapper.eq(RoomInfo::getIsRelease, 1);
+            // 排除已出租的房间
+            queryWrapper.notInSql(RoomInfo::getId, 
+                "SELECT room_id FROM lease_agreement WHERE is_deleted = 0 AND status IN (2, 5)");
+            return roomInfoMapper.selectList(queryWrapper);
+        };
+    }
+
+    /**
+     * 根据房间ID查询租期信息
+     * @return
+     */
+    @Bean
+    @Description("根据房间ID查询租期信息")
+    public Function<LeaseTermInfo, List<LeaseTerm>> leaseTermInfoOperation() {
+        return request -> {
+            LambdaQueryWrapper<RoomLeaseTerm> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(RoomLeaseTerm::getRoomId, request.roomId());
+            queryWrapper.eq(RoomLeaseTerm::getIsDeleted, 0);
+            
+            List<RoomLeaseTerm> roomLeaseTerms = roomLeaseTermMapper.selectList(queryWrapper);
+            List<LeaseTerm> leaseTerms = new ArrayList<>();
+            for (RoomLeaseTerm roomLeaseTerm : roomLeaseTerms) {
+                LeaseTerm leaseTerm = leaseTermMapper.selectById(roomLeaseTerm.getLeaseTermId());
+                if (leaseTerm != null) {
+                    leaseTerms.add(leaseTerm);
+                }
+            }
+            return leaseTerms;
+        };
+    }
+
+    /**
+     * 根据房间ID查询付款方式
+     * @return
+     */
+    @Bean
+    @Description("根据房间ID查询付款方式")
+    public Function<PaymentTypeInfo, List<PaymentType>> paymentTypeInfoOperation() {
+        return request -> {
+            LambdaQueryWrapper<RoomPaymentType> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(RoomPaymentType::getRoomId, request.roomId());
+            queryWrapper.eq(RoomPaymentType::getIsDeleted, 0);
+            
+            List<RoomPaymentType> roomPaymentTypes = roomPaymentTypeMapper.selectList(queryWrapper);
+            List<PaymentType> paymentTypes = new ArrayList<>();
+            for (RoomPaymentType roomPaymentType : roomPaymentTypes) {
+                PaymentType paymentType = paymentTypeMapper.selectById(roomPaymentType.getPaymentTypeId());
+                if (paymentType != null) {
+                    paymentTypes.add(paymentType);
+                }
+            }
+            return paymentTypes;
+        };
+    }
+
+    /**
+     * 根据公寓ID查询公寓详细信息
+     * @return
+     */
+    @Bean
+    @Description("根据公寓ID查询公寓详细信息")
+    public Function<ApartmentDetailInfo, ApartmentInfo> apartmentDetailInfoOperation() {
+        return request -> {
+            return apartmentInfoMapper.selectById(request.apartmentId());
+        };
+    }
 }

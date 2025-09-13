@@ -58,5 +58,6 @@
                 and apartment_id = #{queryVo.apartmentId}
             </if>
         </where>
+        order by ri.create_time desc
     </select>
 </mapper>

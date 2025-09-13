@@ -75,6 +75,7 @@
         <if test="queryVo.orderType == 'desc' or queryVo.orderType == 'asc'">
             order by ri.rent ${queryVo.orderType}
         </if>
+        order by ri.create_time desc
     </select>
 
     <!-- 根据房间ID查询图片列表 -->

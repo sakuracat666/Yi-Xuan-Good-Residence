@@ -22,7 +22,9 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
         // 注册authenticationInterceptor拦截器，并配置其拦截路径和排除路径
         registry.addInterceptor(this.authenticationInterceptor)
                 .addPathPatterns("/app/**") // 设置拦截器拦截所有/app/**路径下的请求
-                .excludePathPatterns("/app/login/**"); // 排除/app/login/**路径下的请求，以便放行登录相关请求
+                .excludePathPatterns("/app/login/**").// 排除/app/login/**路径下的请求，以便放行登录相关请求
+                excludePathPatterns("/app/ai/**");
+
     }
 
 }

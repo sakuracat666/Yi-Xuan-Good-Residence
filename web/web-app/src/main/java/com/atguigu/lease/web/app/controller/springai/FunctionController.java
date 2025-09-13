@@ -7,10 +7,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 @Tag(name = "ai对话助手")
@@ -29,7 +26,7 @@ public class FunctionController {
      * @return
      */
     @Operation(summary = "ai对话助手")
-    @GetMapping(value = "/function", produces = MediaType.TEXT_HTML_VALUE + ";charset=UTF-8")
+    @PostMapping(value = "/function", produces = MediaType.TEXT_HTML_VALUE + ";charset=UTF-8")
     public Flux<String> function01(@RequestParam("userMessage") String userMessage) {
         Flux<String> content = ChatClient.builder(chatModel)
                 .build().prompt()
@@ -41,12 +38,21 @@ public class FunctionController {
                         请讲中文。
                         """)
                 .user(userMessage)
-                .functions("apartmentOperation", // 根据公寓名称、区域名称、公寓介绍、查询对应的公寓信息
+                .functions(
+                        "apartmentOperation", // 根据公寓名称、省份名称、城市名称、区域名称、公寓介绍、查询对应的公寓信息
                         "attrOperation", // 根据房间属性名称查询对应的属性值
                         "apartmentInfoOperation", // 根据房间属性值查询对应的房间id
                         "roomStatusOperation", // 根据房间id查询对应的房间状态
                         "facilityOperation",// 根据房间id查询对应的配套信息
-                        "roomInfoOperation"// 根据房间id查询对应的房间信息
+                        "roomInfoOperation",// 根据房间id查询对应的房间信息
+                        "roomsByApartmentNameOperation", // 根据公寓名称查询所有房间号
+                        "roomByRentRangeOperation", // 根据租金范围查询房间
+                        "roomByPaymentTypeOperation", // 根据付款方式查询房间
+                        "roomByLeaseTermOperation", // 根据租期查询房间
+                        "availableRoomsByApartmentIdOperation", // 根据公寓ID查询可租房源
+                        "leaseTermInfoOperation", // 根据房间ID查询租期信息
+                        "paymentTypeInfoOperation", // 根据房间ID查询付款方式
+                        "apartmentDetailInfoOperation" // 根据公寓ID查询公寓详细信息
                 )
                 .stream()
                 .content();
