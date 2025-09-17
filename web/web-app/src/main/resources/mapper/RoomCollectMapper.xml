@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.lease.web.app.mapper.RoomCollectMapper">
+
+    <!-- 收藏项结果映射 -->
+    <resultMap id="CollectItemVoMap" type="com.atguigu.lease.web.app.vo.collect.CollectItemVo" autoMapping="true">
+        <id column="collect_id" property="collectId"/>
+        <result column="room_id" property="roomId"/>
+        <result column="room_number" property="roomNumber"/>
+        <result column="rent" property="rent"/>
+        <result column="collect_time" property="collectTime"/>
+        
+        <!-- 映射公寓信息 -->
+        <association property="apartmentInfo" javaType="com.atguigu.lease.model.entity.ApartmentInfo" autoMapping="true">
+            <id column="apartment_id" property="id"/>
+            <result column="apartment_name" property="name"/>
+            <result column="apartment_introduction" property="introduction"/>
+            <result column="apartment_district_id" property="districtId"/>
+            <result column="apartment_district_name" property="districtName"/>
+            <result column="apartment_city_id" property="cityId"/>
+            <result column="apartment_city_name" property="cityName"/>
+            <result column="apartment_province_id" property="provinceId"/>
+            <result column="apartment_province_name" property="provinceName"/>
+            <result column="apartment_address_detail" property="addressDetail"/>
+            <result column="apartment_latitude" property="latitude"/>
+            <result column="apartment_longitude" property="longitude"/>
+            <result column="apartment_phone" property="phone"/>
+            <result column="apartment_is_release" property="isRelease"/>
+        </association>
+        
+        <!-- 映射图片列表 -->
+        <collection property="graphVoList" ofType="com.atguigu.lease.web.app.vo.graph.GraphVo"
+                    select="selectGraphVoListByRoomId" column="room_id"/>
+        
+        <!-- 映射标签列表 -->
+        <collection property="labelInfoList" ofType="com.atguigu.lease.model.entity.LabelInfo"
+                    select="selectLabelInfoListByRoomId" column="room_id"/>
+    </resultMap>
+
+    <!-- 分页查询用户收藏的房间列表 -->
+    <select id="pageCollectItem" resultMap="CollectItemVoMap">
+        SELECT
+        rc.id as collect_id,
+        rc.room_id,
+        rc.create_time as collect_time,
+        ri.room_number,
+        ri.rent,
+        ai.id as apartment_id,
+        ai.name as apartment_name,
+        ai.introduction as apartment_introduction,
+        ai.district_id as apartment_district_id,
+        ai.district_name as apartment_district_name,
+        ai.city_id as apartment_city_id,
+        ai.city_name as apartment_city_name,
+        ai.province_id as apartment_province_id,
+        ai.province_name as apartment_province_name,
+        ai.address_detail as apartment_address_detail,
+        ai.latitude as apartment_latitude,
+        ai.longitude as apartment_longitude,
+        ai.phone as apartment_phone,
+        ai.is_release as apartment_is_release
+        FROM room_collect rc
+        LEFT JOIN room_info ri ON rc.room_id = ri.id
+        LEFT JOIN apartment_info ai ON ri.apartment_id = ai.id
+        WHERE rc.user_id = #{userId}
+        AND rc.collect_status = 1
+        AND rc.is_deleted = 0
+        AND ri.is_deleted = 0
+        AND ai.is_deleted = 0
+        <if test="queryVo.provinceId != null">
+            AND ai.province_id = #{queryVo.provinceId}
+        </if>
+        <if test="queryVo.cityId != null">
+            AND ai.city_id = #{queryVo.cityId}
+        </if>
+        <if test="queryVo.districtId != null">
+            AND ai.district_id = #{queryVo.districtId}
+        </if>
+        <if test="queryVo.minRent != null">
+            AND ri.rent >= #{queryVo.minRent}
+        </if>
+        <if test="queryVo.maxRent != null">
+            AND ri.rent &lt;= #{queryVo.maxRent}
+        </if>
+        <if test="queryVo.roomName != null and queryVo.roomName != ''">
+            AND (ri.room_number LIKE CONCAT('%', #{queryVo.roomName}, '%')
+            OR ai.name LIKE CONCAT('%', #{queryVo.roomName}, '%'))
+        </if>
+        <choose>
+            <when test="queryVo.orderType == 'asc'">
+                ORDER BY rc.create_time ASC
+            </when>
+            <otherwise>
+                ORDER BY rc.create_time DESC
+            </otherwise>
+        </choose>
+    </select>
+
+
+    <!-- 查询房间图片列表 -->
+    <select id="selectGraphVoListByRoomId" resultType="com.atguigu.lease.web.app.vo.graph.GraphVo">
+        SELECT 
+            id,
+            name,
+            item_type,
+            item_id,
+            url
+        FROM graph_info 
+        WHERE item_type = 2 
+          AND item_id = #{room_id} 
+          AND is_deleted = 0
+    </select>
+
+    <!-- 查询房间标签列表 -->
+    <select id="selectLabelInfoListByRoomId" resultType="com.atguigu.lease.model.entity.LabelInfo">
+        SELECT 
+            li.id,
+            li.type,
+            li.name
+        FROM label_info li
+        LEFT JOIN room_label rl ON li.id = rl.label_id
+        WHERE rl.room_id = #{room_id} 
+          AND li.is_deleted = 0 
+          AND rl.is_deleted = 0
+    </select>
+
+    <!-- 根据用户ID和房间ID查询收藏记录 -->
+    <select id="selectByUserIdAndRoomId" resultType="com.atguigu.lease.model.entity.RoomCollect">
+        SELECT 
+            id,
+            user_id,
+            room_id,
+            collect_status,
+            create_time,
+            update_time
+        FROM room_collect 
+        WHERE user_id = #{userId} 
+          AND room_id = #{roomId} 
+          AND is_deleted = 0
+    </select>
+
+    <!-- 检查用户是否已收藏房间 -->
+    <select id="isCollected" resultType="java.lang.Boolean">
+        SELECT COUNT(1) > 0
+        FROM room_collect 
+        WHERE user_id = #{userId} 
+          AND room_id = #{roomId} 
+          AND collect_status = 1
+          AND is_deleted = 0
+    </select>
+
+    <!-- 更新收藏状态 -->
+    <update id="updateCollectStatus">
+        UPDATE room_collect 
+        SET collect_status = #{collectStatus},
+            update_time = NOW()
+        WHERE user_id = #{userId} 
+          AND room_id = #{roomId} 
+          AND is_deleted = 0
+    </update>
+
+</mapper>

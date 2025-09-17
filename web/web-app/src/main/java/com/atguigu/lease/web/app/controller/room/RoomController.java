@@ -2,7 +2,6 @@ package com.atguigu.lease.web.app.controller.room;
 
 
 import com.atguigu.lease.common.result.Result;
-import com.atguigu.lease.model.entity.RoomInfo;
 import com.atguigu.lease.web.app.service.RoomInfoService;
 import com.atguigu.lease.web.app.vo.room.RoomDetailVo;
 import com.atguigu.lease.web.app.vo.room.RoomItemVo;
