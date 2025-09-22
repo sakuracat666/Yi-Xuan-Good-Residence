@@ -314,8 +314,14 @@ public class CalculatorService {
         return request -> {
             LambdaQueryWrapper<RoomInfo> queryWrapper = new LambdaQueryWrapper<>();
             queryWrapper.eq(RoomInfo::getRoomNumber, request.roomNumber);
-            RoomInfo roomInfo = roomInfoMapper.selectOne(queryWrapper);
-
+            List<RoomInfo> roomInfos = roomInfoMapper.selectList(queryWrapper);
+            
+            if (roomInfos.isEmpty()) {
+                return new ArrayList<>(); // 如果没有找到房间，返回空列表
+            }
+            
+            // 使用第一个房间来获取设施信息
+            RoomInfo roomInfo = roomInfos.get(0);
             Long id = roomInfo.getId();
             List<FacilityInfo> facilityInfos = facilityInfoMapper.selectListByRoomId(id);
             return facilityInfos;
