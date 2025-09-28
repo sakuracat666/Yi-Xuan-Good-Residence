@@ -19,6 +19,7 @@
         ai.longitude,
         ai.phone,
         ai.is_release,
+        ai.create_time,
         ifnull(tc.cnt,0) total_room_count,
         ifnull(tc.cnt,0) - ifnull(cc.cnt,0) free_room_count
         from (select id,
@@ -34,7 +35,8 @@
         latitude,
         longitude,
         phone,
-        is_release
+        is_release,
+        create_time
         from apartment_info
         <where>
             is_deleted=0
@@ -65,7 +67,7 @@
         and status in (2, 5)
         group by apartment_id) cc
         on ai.id = cc.apartment_id
-
+        order by ai.create_time desc
     </select>
 
 </mapper>
