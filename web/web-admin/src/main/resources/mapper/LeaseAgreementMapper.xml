@@ -87,5 +87,6 @@
                 and la.phone like concat('%',#{queryVo.phone},'%')
             </if>
         </where>
+        order by la.create_time desc
     </select>
 </mapper>

@@ -27,6 +27,7 @@
                  left join graph_info gi on gi.item_type = 2 and gi.item_id = ri.id and gi.is_deleted = 0
         where la.is_deleted = 0
           and la.phone = #{phone}
+        order by la.create_time desc
 
     </select>
 </mapper>
