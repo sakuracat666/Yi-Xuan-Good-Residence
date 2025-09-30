@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * 房间收藏Service实现类
  * 针对表【room_collect(房间收藏表)】的数据库操作Service实现
@@ -86,5 +88,18 @@ public class RoomCollectServiceImpl extends ServiceImpl<RoomCollectMapper, RoomC
         queryWrapper.eq(RoomCollect::getUserId, userId)
                    .eq(RoomCollect::getCollectStatus, 1);
         return this.count(queryWrapper);
+    }
+
+    /**
+     * 批量更新收藏状态
+     * @param userId 用户ID
+     * @param ids 收藏项ID列表
+     * @param status 状态
+     * @return 更新记录数
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int updateCollectStatusBatch(Long userId, List<Long> ids, Integer status) {
+        return roomCollectMapper.updateCollectStatusBatch(userId, ids, status);
     }
 }

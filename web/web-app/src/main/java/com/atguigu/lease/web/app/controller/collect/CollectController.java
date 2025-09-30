@@ -12,6 +12,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * 房间收藏控制器
  * 提供房间收藏相关的API接口
@@ -96,5 +98,23 @@ public class CollectController {
         Long count = roomCollectService.getCollectCount(userId);
 
         return Result.ok(count);
+    }
+    
+    /**
+     * 批量更新收藏状态
+     * @param ids 收藏项ID列表
+     * @param status 状态
+     * @return 操作结果
+     */
+    @Operation(summary = "批量更新收藏状态")
+    @PostMapping("status/batch")
+    public Result<String> updateCollectStatusBatch(@RequestParam List<Long> ids, @RequestParam Integer status) {
+        // 获取当前登录用户ID
+        Long userId = LoginUserHolder.getLoginUser().getUserId();
+        
+        // 调用服务批量更新收藏状态
+        int updatedCount = roomCollectService.updateCollectStatusBatch(userId, ids, status);
+        
+        return Result.ok("成功更新" + updatedCount + "条记录");
     }
 }

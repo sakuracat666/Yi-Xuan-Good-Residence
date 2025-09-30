@@ -43,6 +43,15 @@ public interface RoomCollectMapper extends BaseMapper<RoomCollect> {
     int updateCollectStatus(@Param("userId") Long userId, @Param("roomId") Long roomId, @Param("collectStatus") Integer collectStatus);
 
     /**
+     * 批量更新收藏状态
+     * @param userId 用户ID
+     * @param ids 收藏项ID列表
+     * @param status 状态
+     * @return 更新记录数
+     */
+    int updateCollectStatusBatch(@Param("userId") Long userId, @Param("ids") List<Long> ids, @Param("status") Integer status);
+
+    /**
      * 查询房间图片列表
      * @param roomId 房间ID
      * @return 图片列表

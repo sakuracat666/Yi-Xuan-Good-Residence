@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.util.List;
+
 /**
  * 房间收藏Service接口
  * 针对表【room_collect(房间收藏表)】的数据库操作Service
@@ -44,4 +46,13 @@ public interface RoomCollectService extends IService<RoomCollect> {
      * @return 收藏数量
      */
     Long getCollectCount(Long userId);
+
+    /**
+     * 批量更新收藏状态
+     * @param userId 用户ID
+     * @param ids 收藏项ID列表
+     * @param status 状态
+     * @return 更新记录数
+     */
+    int updateCollectStatusBatch(Long userId, List<Long> ids, Integer status);
 }
