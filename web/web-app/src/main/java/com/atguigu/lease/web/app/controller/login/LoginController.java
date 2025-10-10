@@ -21,9 +21,9 @@ public class LoginController {
 
     @GetMapping("login/getCode")
     @Operation(summary = "获取短信验证码")
-    public Result getCode(@RequestParam String phone) {
-        loginService.sendCode(phone);
-        return Result.ok();
+    public Result<String> getCode(@RequestParam String phone) {
+        String code = loginService.sendCode(phone);
+        return Result.ok(code);
     }
 
     @PostMapping("login")

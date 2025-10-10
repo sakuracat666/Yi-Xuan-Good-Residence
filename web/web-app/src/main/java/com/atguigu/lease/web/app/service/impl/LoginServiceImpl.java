@@ -43,7 +43,7 @@ public class LoginServiceImpl implements LoginService {
      * 否则，将抛出异常提示不能频繁发送验证码
      */
     @Override
-    public void sendCode(String phone) {
+    public String sendCode(String phone) {
         // 生成6位验证码
         String code = VerifyCodeUtil.getVerifyCode(6);
         // 构建Redis的键，用于存储验证码
@@ -62,10 +62,12 @@ public class LoginServiceImpl implements LoginService {
         }
 
         // TODO发送验证码到指定手机号
-//        smsService.sendCode(phone, code);
+        smsService.sendCode(phone, code);
         System.err.println("验证码：" + code);
         // 在Redis中存储验证码，设置过期时间
         redisTemplate.opsForValue().set(key, code, RedisConstant.APP_LOGIN_CODE_TTL_SEC, TimeUnit.SECONDS);
+
+        return code;
     }
 
 

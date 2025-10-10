@@ -8,7 +8,7 @@ public interface LoginService {
      * 发送短信验证码
      * @param phone
      */
-    void sendCode(String phone);
+    String sendCode(String phone);
 
     /**
      * 登录
