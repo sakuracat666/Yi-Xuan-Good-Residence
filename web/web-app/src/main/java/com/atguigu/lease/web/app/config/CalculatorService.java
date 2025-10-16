@@ -1,9 +1,19 @@
 package com.atguigu.lease.web.app.config;
 
 import com.atguigu.lease.model.entity.*;
+import com.atguigu.lease.model.enums.ItemType;
 import com.atguigu.lease.model.enums.LeaseStatus;
 import com.atguigu.lease.web.app.mapper.*;
+import com.atguigu.lease.web.app.vo.apartment.ApartmentItemVo;
+import com.atguigu.lease.web.app.vo.attr.AttrValueVo;
+import com.atguigu.lease.web.app.vo.fee.FeeValueVo;
+import com.atguigu.lease.web.app.vo.graph.GraphVo;
+import com.atguigu.lease.web.app.vo.room.RoomDetailVo;
+import com.atguigu.lease.web.app.vo.room.RoomItemVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -52,6 +62,15 @@ public class CalculatorService {
 
     @Autowired
     private RoomPaymentTypeMapper roomPaymentTypeMapper;
+
+    @Autowired
+    private GraphInfoMapper graphInfoMapper;
+
+    @Autowired
+    private LabelInfoMapper labelInfoMapper;
+
+    @Autowired
+    private FeeValueMapper feeValueMapper;
 
     /**
      * 公寓信息查询参数
@@ -164,6 +183,36 @@ public class CalculatorService {
     }
 
     /**
+     * 根据地区信息查询房间参数
+     * @param provinceName 省份名称
+     * @param cityName 城市名称
+     * @param districtName 区域名称
+     */
+    public record RoomsByRegion(String provinceName, String cityName, String districtName) {
+    }
+
+    /**
+     * 根据公寓ID查询房间列表参数
+     * @param apartmentId 公寓ID
+     */
+    public record RoomsByApartmentId(Long apartmentId) {
+    }
+
+    /**
+     * 根据房间ID查询房间详细信息参数
+     * @param roomId 房间ID
+     */
+    public record RoomDetailById(Long roomId) {
+    }
+
+    /**
+     * 根据房间ID查询配套信息参数
+     * @param roomId 房间ID
+     */
+    public record FacilityByRoomId(Long roomId) {
+    }
+
+    /**
      * 公寓信息查询
      *
      * @return
@@ -193,7 +242,83 @@ public class CalculatorService {
         };
     }
 
+    /**
+     * 根据地区信息查询房间
+     *
+     * @return
+     */
+    @Bean
+    @Description("根据省份名称、城市名称、区域名称查询房间")
+    public Function<RoomsByRegion, List<RoomItemVo>> roomsByRegionOperation() {
+        return request -> {
+            // 先根据地区信息查询公寓
+            LambdaQueryWrapper<ApartmentInfo> apartmentQueryWrapper = new LambdaQueryWrapper<>();
+            
+            if (request.provinceName() != null && !request.provinceName().isEmpty()) {
+                apartmentQueryWrapper.eq(ApartmentInfo::getProvinceName, request.provinceName());
+            }
+            if (request.cityName() != null && !request.cityName().isEmpty()) {
+                apartmentQueryWrapper.eq(ApartmentInfo::getCityName, request.cityName());
+            }
+            if (request.districtName() != null && !request.districtName().isEmpty()) {
+                apartmentQueryWrapper.eq(ApartmentInfo::getDistrictName, request.districtName());
+            }
+            
+            List<ApartmentInfo> apartments = apartmentInfoMapper.selectList(apartmentQueryWrapper);
+            List<Long> apartmentIds = apartments.stream().map(ApartmentInfo::getId).toList();
+            
+            if (apartmentIds.isEmpty()) {
+                return new ArrayList<>();
+            }
+            
+            // 再根据公寓ID查询房间
+            LambdaQueryWrapper<RoomInfo> roomQueryWrapper = new LambdaQueryWrapper<>();
+            roomQueryWrapper.in(RoomInfo::getApartmentId, apartmentIds);
+            roomQueryWrapper.eq(RoomInfo::getIsDeleted, 0);
+            roomQueryWrapper.eq(RoomInfo::getIsRelease, 1);
+            
+            List<RoomInfo> roomInfos = roomInfoMapper.selectList(roomQueryWrapper);
+            List<RoomItemVo> roomItemVos = new ArrayList<>();
+            
+            for (RoomInfo roomInfo : roomInfos) {
+                RoomItemVo roomItemVo = new RoomItemVo();
+                BeanUtils.copyProperties(roomInfo, roomItemVo);
+                
+                // 查询公寓信息
+                ApartmentInfo apartmentInfo = apartmentInfoMapper.selectById(roomInfo.getApartmentId());
+                roomItemVo.setApartmentInfo(apartmentInfo);
+                
+                // 查询房间图片
+                List<GraphVo> graphVos = graphInfoMapper.selectListByItemTypeAndId(ItemType.ROOM, roomInfo.getId());
+                roomItemVo.setGraphVoList(graphVos);
+                
+                // 查询房间标签
+                List<LabelInfo> labelInfos = labelInfoMapper.selectListByRoomId(roomInfo.getId());
+                roomItemVo.setLabelInfoList(labelInfos);
+                
+                roomItemVos.add(roomItemVo);
+            }
+            
+            return roomItemVos;
+        };
+    }
 
+    /**
+     * 根据公寓ID查询房间列表
+     *
+     * @return
+     */
+    @Bean
+    @Description("根据公寓ID查询房间列表")
+    public Function<RoomsByApartmentId, List<RoomInfo>> roomsByApartmentIdOperation() {
+        return request -> {
+            LambdaQueryWrapper<RoomInfo> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(RoomInfo::getApartmentId, request.apartmentId());
+            queryWrapper.eq(RoomInfo::getIsDeleted, 0);
+            queryWrapper.eq(RoomInfo::getIsRelease, 1);
+            return roomInfoMapper.selectList(queryWrapper);
+        };
+    }
 
     /**
      * 根据公寓名称查询所有房间号
@@ -223,7 +348,6 @@ public class CalculatorService {
                     .toList();
         };
     }
-
 
     /**
      * 房间属性查询
@@ -257,11 +381,16 @@ public class CalculatorService {
      */
     @Bean
     @Description("根据房间属性值查询对应的房间id")
-    public Function<RoomOperation, List<Long>> apartmentInfoOperation() {
+    public Function<RoomOperation, List<Long>> roomIdsByAttrValueOperation() {
         return request -> {
             LambdaQueryWrapper<AttrValue> queryWrapper = new LambdaQueryWrapper<>();
             queryWrapper.eq(AttrValue::getName, request.attributeValueName());
             AttrValue attrValue = attrValueMapper.selectOne(queryWrapper);
+            
+            if (attrValue == null) {
+                return new ArrayList<>();
+            }
+
             Long id = attrValue.getId();
 
             LambdaQueryWrapper<RoomAttrValue> queryWrapper1 = new LambdaQueryWrapper<>();
@@ -272,12 +401,13 @@ public class CalculatorService {
             for (RoomAttrValue roomAttrValue : roomAttrValues) {
                 Long roomId = roomAttrValue.getRoomId();
                 RoomInfo roomInfo = roomInfoMapper.selectById(roomId);
-                roomIds.add(roomInfo.getId());
+                if (roomInfo != null) {
+                    roomIds.add(roomInfo.getId());
+                }
             }
             return roomIds;
         };
     }
-
 
     @Bean
     @Description("根据房间id查询对应的房间信息")
@@ -288,19 +418,76 @@ public class CalculatorService {
     }
 
     /**
+     * 根据房间ID查询房间详细信息
+     *
+     * @return
+     */
+    @Bean
+    @Description("根据房间ID查询房间详细信息")
+    public Function<RoomDetailById, RoomDetailVo> roomDetailOperation() {
+        return request -> {
+            RoomInfo roomInfo = roomInfoMapper.selectById(request.roomId());
+            if (roomInfo == null) {
+                return null;
+            }
+
+            RoomDetailVo roomDetailVo = new RoomDetailVo();
+            BeanUtils.copyProperties(roomInfo, roomDetailVo);
+
+            // 查询公寓信息
+            ApartmentInfo apartmentInfo = apartmentInfoMapper.selectById(roomInfo.getApartmentId());
+            if (apartmentInfo != null) {
+                ApartmentItemVo apartmentItemVo = new ApartmentItemVo();
+                BeanUtils.copyProperties(apartmentInfo, apartmentItemVo);
+                roomDetailVo.setApartmentItemVo(apartmentItemVo);
+            }
+
+            // 查询图片
+            List<GraphVo> graphVos = graphInfoMapper.selectListByItemTypeAndId(ItemType.ROOM, roomInfo.getId());
+            roomDetailVo.setGraphVoList(graphVos);
+
+            // 查询属性值
+            List<AttrValueVo> attrValueVos = attrValueMapper.selectListByRoomId(roomInfo.getId());
+            roomDetailVo.setAttrValueVoList(attrValueVos);
+
+            // 查询配套信息
+            List<FacilityInfo> facilityInfos = facilityInfoMapper.selectListByRoomId(roomInfo.getId());
+            roomDetailVo.setFacilityInfoList(facilityInfos);
+
+            // 查询标签
+            List<LabelInfo> labelInfos = labelInfoMapper.selectListByRoomId(roomInfo.getId());
+            roomDetailVo.setLabelInfoList(labelInfos);
+
+            // 查询支付方式
+            List<PaymentType> paymentTypes = paymentTypeMapper.selectListByRoomId(roomInfo.getId());
+            roomDetailVo.setPaymentTypeList(paymentTypes);
+
+            // 查询杂费
+            List<FeeValueVo> feeValueVos = feeValueMapper.selectListByApartmentId(roomInfo.getApartmentId());
+            roomDetailVo.setFeeValueVoList(feeValueVos);
+
+            // 查询租期
+            List<LeaseTerm> leaseTerms = leaseTermMapper.selectListByRoomId(roomInfo.getId());
+            roomDetailVo.setLeaseTermList(leaseTerms);
+
+            return roomDetailVo;
+        };
+    }
+
+    /**
      * 房间状态查询
      * @return
      */
     @Bean
     @Description("根据房间id查询对应的房间状态")
-    public Function<RoomStatus, String> roomStatusOperation() {
+    public Function<RoomStatus, LeaseStatus> roomStatusOperation() {
         return request -> {
             LambdaQueryWrapper<LeaseAgreement> queryWrapper = new LambdaQueryWrapper<>();
             queryWrapper.eq(LeaseAgreement::getRoomId, request.roomId);
             queryWrapper.eq(LeaseAgreement::getIsDeleted, 0);
             LeaseAgreement leaseAgreement = leaseAgreementMapper.selectOne(queryWrapper);
 
-            return String.valueOf(leaseAgreement.getStatus());
+            return leaseAgreement != null ? leaseAgreement.getStatus() : null;
         };
     }
 
@@ -328,6 +515,16 @@ public class CalculatorService {
         };
     }
     
+    /**
+     * 根据房间ID查询配套信息
+     * @return
+     */
+    @Bean
+    @Description("根据房间ID查询配套信息")
+    public Function<FacilityByRoomId, List<FacilityInfo>> facilityByRoomIdOperation() {
+        return request -> facilityInfoMapper.selectListByRoomId(request.roomId());
+    }
+
     /**
      * 根据租金范围查询房间
      * @return
