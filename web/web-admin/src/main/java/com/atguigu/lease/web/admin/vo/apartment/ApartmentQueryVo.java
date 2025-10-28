@@ -1,5 +1,6 @@
 package com.atguigu.lease.web.admin.vo.apartment;
 
+import com.atguigu.lease.model.enums.ReleaseStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -15,4 +16,7 @@ public class ApartmentQueryVo {
 
     @Schema(description = "区域id")
     private Long districtId;
+
+    @Schema(description = "发布状态")
+    private String is_release;
 }

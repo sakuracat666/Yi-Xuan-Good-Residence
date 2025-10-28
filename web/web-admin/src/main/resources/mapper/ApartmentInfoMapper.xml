@@ -49,6 +49,9 @@
             <if test="queryVo.districtId != null">
                 and district_id=#{queryVo.districtId}
             </if>
+            <if test="queryVo.is_release != null">
+                and is_release=#{queryVo.is_release}
+            </if>
         </where>
         ) ai
         left join

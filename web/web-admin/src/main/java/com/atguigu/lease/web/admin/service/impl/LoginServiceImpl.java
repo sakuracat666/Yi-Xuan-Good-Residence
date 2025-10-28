@@ -49,7 +49,6 @@ public class LoginServiceImpl implements LoginService {
         String code = specCaptcha.text().toLowerCase();
         // 生成一个唯一的键，用于在Redis中存储验证码文本
         String key = RedisConstant.ADMIN_LOGIN_PREFIX + UUID.randomUUID();
-
         // 将验证码文本存储到Redis中，设置过期时间为60秒
         redisTemplate.opsForValue().set(key, code, RedisConstant.ADMIN_LOGIN_CAPTCHA_TTL_SEC, TimeUnit.SECONDS);
 

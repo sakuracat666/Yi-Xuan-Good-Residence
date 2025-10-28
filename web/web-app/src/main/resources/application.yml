@@ -24,11 +24,11 @@ spring:
   ai:
     openai:
       api-key: sk-682717e6569a484b9ea9ffaf173c615c
-      base-url: https://api.deepseek.com/v3.1_terminus_expires_on_20251015
+      base-url: https://api.deepseek.com
       chat:
         options:
           model: deepseek-chat
-          temperature: 0.6
+          temperature: 0.7
       client:
         read-timeout: 120s
         connect-timeout: 30s

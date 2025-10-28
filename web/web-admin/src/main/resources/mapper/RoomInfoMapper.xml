@@ -57,6 +57,9 @@
             <if test="queryVo.apartmentId != null">
                 and apartment_id = #{queryVo.apartmentId}
             </if>
+            <if test="queryVo.is_release != null">
+                and ri.is_release = #{queryVo.is_release}
+            </if>
         </where>
         order by ri.create_time desc
     </select>

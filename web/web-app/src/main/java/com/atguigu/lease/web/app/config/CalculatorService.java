@@ -96,7 +96,7 @@ public class CalculatorService {
      * 房间属性值查询参数
      * @param attributeValueName 属性值名称
      */
-    public record RoomOperation(String attributeValueName) {
+    public record ApartmentInfoOperation(String attributeValueName) {
 
     }
 
@@ -309,14 +309,46 @@ public class CalculatorService {
      * @return
      */
     @Bean
-    @Description("根据公寓ID查询房间列表")
-    public Function<RoomsByApartmentId, List<RoomInfo>> roomsByApartmentIdOperation() {
+    @Description("根据公寓ID查询房间列表，包含房间图片的完整URL地址")
+    public Function<RoomsByApartmentId, List<RoomItemVo>> roomsByApartmentIdOperation() {
         return request -> {
-            LambdaQueryWrapper<RoomInfo> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(RoomInfo::getApartmentId, request.apartmentId());
-            queryWrapper.eq(RoomInfo::getIsDeleted, 0);
-            queryWrapper.eq(RoomInfo::getIsRelease, 1);
-            return roomInfoMapper.selectList(queryWrapper);
+            // 先根据公寓ID查询公寓
+            LambdaQueryWrapper<ApartmentInfo> apartmentQueryWrapper = new LambdaQueryWrapper<>();
+            apartmentQueryWrapper.eq(ApartmentInfo::getId, request.apartmentId());
+            apartmentQueryWrapper.eq(ApartmentInfo::getIsDeleted, 0);
+            ApartmentInfo apartmentInfo = apartmentInfoMapper.selectOne(apartmentQueryWrapper);
+            
+            if (apartmentInfo == null) {
+                return new ArrayList<>();
+            }
+
+            // 再根据公寓ID查询房间
+            LambdaQueryWrapper<RoomInfo> roomQueryWrapper = new LambdaQueryWrapper<>();
+            roomQueryWrapper.eq(RoomInfo::getApartmentId, request.apartmentId());
+            roomQueryWrapper.eq(RoomInfo::getIsDeleted, 0);
+            roomQueryWrapper.eq(RoomInfo::getIsRelease, 1);
+            List<RoomInfo> roomInfos = roomInfoMapper.selectList(roomQueryWrapper);
+            
+            List<RoomItemVo> roomItemVos = new ArrayList<>();
+            for (RoomInfo roomInfo : roomInfos) {
+                RoomItemVo roomItemVo = new RoomItemVo();
+                BeanUtils.copyProperties(roomInfo, roomItemVo);
+                
+                // 设置公寓信息
+                roomItemVo.setApartmentInfo(apartmentInfo);
+                
+                // 查询房间图片
+                List<GraphVo> graphVos = graphInfoMapper.selectListByItemTypeAndId(ItemType.ROOM, roomInfo.getId());
+                roomItemVo.setGraphVoList(graphVos);
+                
+                // 查询房间标签
+                List<LabelInfo> labelInfos = labelInfoMapper.selectListByRoomId(roomInfo.getId());
+                roomItemVo.setLabelInfoList(labelInfos);
+                
+                roomItemVos.add(roomItemVo);
+            }
+            
+            return roomItemVos;
         };
     }
 
@@ -325,12 +357,13 @@ public class CalculatorService {
      * @return
      */
     @Bean
-    @Description("根据公寓名称查询所有房间号")
-    public Function<RoomsByApartmentName, List<String>> roomsByApartmentNameOperation() {
+    @Description("根据公寓名称查询所有房间号及相关信息，包含房间图片的完整URL地址")
+    public Function<RoomsByApartmentName, List<RoomItemVo>> roomsByApartmentNameOperation() {
         return request -> {
             // 先根据公寓名称查询公寓信息
             LambdaQueryWrapper<ApartmentInfo> apartmentQueryWrapper = new LambdaQueryWrapper<>();
             apartmentQueryWrapper.eq(ApartmentInfo::getName, request.apartmentName);
+            apartmentQueryWrapper.eq(ApartmentInfo::getIsDeleted, 0);
             ApartmentInfo apartmentInfo = apartmentInfoMapper.selectOne(apartmentQueryWrapper);
 
             if (apartmentInfo == null) {
@@ -340,12 +373,31 @@ public class CalculatorService {
             // 根据公寓ID查询所有房间
             LambdaQueryWrapper<RoomInfo> roomQueryWrapper = new LambdaQueryWrapper<>();
             roomQueryWrapper.eq(RoomInfo::getApartmentId, apartmentInfo.getId());
+            roomQueryWrapper.eq(RoomInfo::getIsDeleted, 0);
+            roomQueryWrapper.eq(RoomInfo::getIsRelease, 1);
             List<RoomInfo> roomInfos = roomInfoMapper.selectList(roomQueryWrapper);
 
-            // 提取房间号
-            return roomInfos.stream()
-                    .map(RoomInfo::getRoomNumber)
-                    .toList();
+            // 构建房间列表VO
+            List<RoomItemVo> roomItemVos = new ArrayList<>();
+            for (RoomInfo roomInfo : roomInfos) {
+                RoomItemVo roomItemVo = new RoomItemVo();
+                BeanUtils.copyProperties(roomInfo, roomItemVo);
+                
+                // 设置公寓信息
+                roomItemVo.setApartmentInfo(apartmentInfo);
+                
+                // 查询房间图片
+                List<GraphVo> graphVos = graphInfoMapper.selectListByItemTypeAndId(ItemType.ROOM, roomInfo.getId());
+                roomItemVo.setGraphVoList(graphVos);
+                
+                // 查询房间标签
+                List<LabelInfo> labelInfos = labelInfoMapper.selectListByRoomId(roomInfo.getId());
+                roomItemVo.setLabelInfoList(labelInfos);
+                
+                roomItemVos.add(roomItemVo);
+            }
+            
+            return roomItemVos;
         };
     }
 
@@ -381,7 +433,7 @@ public class CalculatorService {
      */
     @Bean
     @Description("根据房间属性值查询对应的房间id")
-    public Function<RoomOperation, List<Long>> roomIdsByAttrValueOperation() {
+    public Function<ApartmentInfoOperation, List<Long>> apartmentInfoOperation() {
         return request -> {
             LambdaQueryWrapper<AttrValue> queryWrapper = new LambdaQueryWrapper<>();
             queryWrapper.eq(AttrValue::getName, request.attributeValueName());
@@ -409,11 +461,41 @@ public class CalculatorService {
         };
     }
 
+    /**
+     * 根据房间ID查询房间信息
+     * @return
+     */
     @Bean
-    @Description("根据房间id查询对应的房间信息")
-    public Function<RoomInfoById, RoomInfo> roomInfoOperation() {
+    @Description("根据房间ID查询房间信息，包含房间图片的完整URL地址")
+    public Function<RoomInfoById, RoomItemVo> roomInfoOperation() {
         return request -> {
-            return roomInfoMapper.selectById(request.roomId);
+            RoomInfo roomInfo = roomInfoMapper.selectById(request.roomId);
+            if (roomInfo == null) {
+                return null;
+            }
+            
+            // 查询公寓信息
+            ApartmentInfo apartmentInfo = apartmentInfoMapper.selectById(roomInfo.getApartmentId());
+            if (apartmentInfo == null) {
+                return null;
+            }
+            
+            // 构建房间VO
+            RoomItemVo roomItemVo = new RoomItemVo();
+            BeanUtils.copyProperties(roomInfo, roomItemVo);
+            
+            // 设置公寓信息
+            roomItemVo.setApartmentInfo(apartmentInfo);
+            
+            // 查询房间图片
+            List<GraphVo> graphVos = graphInfoMapper.selectListByItemTypeAndId(ItemType.ROOM, roomInfo.getId());
+            roomItemVo.setGraphVoList(graphVos);
+            
+            // 查询房间标签
+            List<LabelInfo> labelInfos = labelInfoMapper.selectListByRoomId(roomInfo.getId());
+            roomItemVo.setLabelInfoList(labelInfos);
+            
+            return roomItemVo;
         };
     }
 
@@ -423,7 +505,7 @@ public class CalculatorService {
      * @return
      */
     @Bean
-    @Description("根据房间ID查询房间详细信息")
+    @Description("根据房间ID查询房间详细信息，包含房间图片的完整URL地址")
     public Function<RoomDetailById, RoomDetailVo> roomDetailOperation() {
         return request -> {
             RoomInfo roomInfo = roomInfoMapper.selectById(request.roomId());

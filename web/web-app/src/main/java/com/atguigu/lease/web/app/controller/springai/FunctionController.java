@@ -55,6 +55,7 @@ public class FunctionController {
                     您能够支持公寓信息查询、房间信息查询、设施信息查询、租约信息查询、房间属性查询等操作。
                     在提供公寓信息查询服务之前，您必须从用户处获取如下信息：公寓名称、公寓介绍、区域名称、房间号、手机号、房间属性（朝向、面积等）、所在省份等。
                     请调用自定义函数执行公寓信息查询、房间属性查询、房间信息查询、设施信息查询、租约信息查询等操作。
+                    所有图片信息都包含完整的URL地址，可以直接使用。
                     请讲中文。
                     """;
 
@@ -86,7 +87,11 @@ public class FunctionController {
                             "availableRoomsByApartmentIdOperation", // 根据公寓ID查询可租房源
                             "leaseTermInfoOperation", // 根据房间ID查询租期信息
                             "paymentTypeInfoOperation", // 根据房间ID查询付款方式
-                            "apartmentDetailInfoOperation" // 根据公寓ID查询公寓详细信息
+                            "apartmentDetailInfoOperation", // 根据公寓ID查询公寓详细信息
+                            "roomsByRegionOperation", // 根据省份名称、城市名称、区域名称查询房间
+                            "roomsByApartmentIdOperation", // 根据公寓ID查询房间列表
+                            "roomDetailOperation", // 根据房间ID查询房间详细信息
+                            "facilityByRoomIdOperation" // 根据房间ID查询配套信息
                     )
                     .stream()
                     .content();
