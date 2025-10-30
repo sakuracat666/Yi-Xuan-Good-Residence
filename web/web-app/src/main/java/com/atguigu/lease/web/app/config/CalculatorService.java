@@ -226,16 +226,16 @@ public class CalculatorService {
                 queryWrapper.eq(ApartmentInfo::getName, request.apartmentName);
             }
             if (request.cityName() != null && !request.cityName().isEmpty()) {
-                queryWrapper.eq(ApartmentInfo::getCityName, request.cityName);
+                queryWrapper.like(ApartmentInfo::getCityName, request.cityName());
             }
             if (request.districtName() != null && !request.districtName().isEmpty()) {
-                queryWrapper.eq(ApartmentInfo::getDistrictName, request.districtName);
+                queryWrapper.like(ApartmentInfo::getDistrictName, request.districtName());
             }
             if (request.introduction() != null && !request.introduction().isEmpty()) {
                 queryWrapper.eq(ApartmentInfo::getIntroduction, request.introduction);
             }
             if (request.provinceName() != null && !request.provinceName().isEmpty()) {
-                queryWrapper.eq(ApartmentInfo::getProvinceName, request.provinceName);
+                queryWrapper.like(ApartmentInfo::getProvinceName, request.provinceName());
             }
 
             return apartmentInfoMapper.selectList(queryWrapper);
@@ -255,13 +255,13 @@ public class CalculatorService {
             LambdaQueryWrapper<ApartmentInfo> apartmentQueryWrapper = new LambdaQueryWrapper<>();
             
             if (request.provinceName() != null && !request.provinceName().isEmpty()) {
-                apartmentQueryWrapper.eq(ApartmentInfo::getProvinceName, request.provinceName());
+                apartmentQueryWrapper.like(ApartmentInfo::getProvinceName, request.provinceName());
             }
             if (request.cityName() != null && !request.cityName().isEmpty()) {
-                apartmentQueryWrapper.eq(ApartmentInfo::getCityName, request.cityName());
+                apartmentQueryWrapper.like(ApartmentInfo::getCityName, request.cityName());
             }
             if (request.districtName() != null && !request.districtName().isEmpty()) {
-                apartmentQueryWrapper.eq(ApartmentInfo::getDistrictName, request.districtName());
+                apartmentQueryWrapper.like(ApartmentInfo::getDistrictName, request.districtName());
             }
             
             List<ApartmentInfo> apartments = apartmentInfoMapper.selectList(apartmentQueryWrapper);
