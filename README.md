@@ -1,4 +1,4 @@
-# 云上公寓（Lease Platform）
+# 易选好寓（Lease Platform）
 
 面向长租公寓业务的前后端分离解决方案，基于 **Spring Boot 3 + Vue** 构建。项目提供租客端（App Web）与管理端（Admin Web）两套应用，实现房源展示、预约签约、账单支付及后台运营管理。
 
@@ -176,7 +176,7 @@ java -jar web/web-admin/target/web-admin-*.jar
 4. 推送分支：`git push origin feat/<feature-name>`。
 5. 发起 Pull Request，描述修改内容与影响。
 
-欢迎提交 Issue / PR，一起完善云上公寓平台！
+欢迎提交 Issue / PR，一起完善易选好寓平台！
 
 ## 许可证
 本项目遵循企业内部或自定义许可证（可根据需求填写）。若需开源，请补充许可证信息（如 MIT、Apache 2.0 等）。
