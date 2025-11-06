@@ -69,7 +69,8 @@ public class Knife4jConfiguration {
     public GroupedOpenApi userAPI() {
         return GroupedOpenApi.builder().group("平台用户管理").
                 pathsToMatch(
-                        "/admin/user/**"
+                        "/admin/user/**",
+                        "/admin/profile/tenant/**"
                 ).build();
     }
 }

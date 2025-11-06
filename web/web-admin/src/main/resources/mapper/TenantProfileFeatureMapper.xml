@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.lease.web.admin.mapper.TenantProfileFeatureMapper">
+
+    <select id="pageTenantProfiles"
+            resultType="com.atguigu.lease.web.admin.vo.profile.TenantProfileItemVo">
+        SELECT
+            user_id AS userId,
+            phone,
+            nickname,
+            activity_level_tag AS activityLevelTag,
+            intention_tag AS intentionTag,
+            value_level_tag AS valueLevelTag,
+            payment_behavior_tag AS paymentBehaviorTag,
+            browse_cnt_30d AS browseCnt30d,
+            appointment_cnt_30d AS appointmentCnt30d,
+            rent_amount AS rentAmount,
+            data_date AS dataDate
+        FROM tenant_profile_features
+        <where>
+            <if test="queryVo != null">
+                <if test="queryVo.phone != null and queryVo.phone != ''">
+                    AND phone LIKE CONCAT('%', #{queryVo.phone}, '%')
+                </if>
+                <if test="queryVo.nickname != null and queryVo.nickname != ''">
+                    AND nickname LIKE CONCAT('%', #{queryVo.nickname}, '%')
+                </if>
+                <if test="queryVo.activityLevelTag != null and queryVo.activityLevelTag != ''">
+                    AND activity_level_tag = #{queryVo.activityLevelTag}
+                </if>
+                <if test="queryVo.intentionTag != null and queryVo.intentionTag != ''">
+                    AND intention_tag = #{queryVo.intentionTag}
+                </if>
+                <if test="queryVo.valueLevelTag != null and queryVo.valueLevelTag != ''">
+                    AND value_level_tag = #{queryVo.valueLevelTag}
+                </if>
+                <if test="queryVo.paymentBehaviorTag != null and queryVo.paymentBehaviorTag != ''">
+                    AND payment_behavior_tag = #{queryVo.paymentBehaviorTag}
+                </if>
+                <if test="queryVo.dataDateStart != null">
+                    AND data_date &gt;= #{queryVo.dataDateStart}
+                </if>
+                <if test="queryVo.dataDateEnd != null">
+                    AND data_date &lt;= #{queryVo.dataDateEnd}
+                </if>
+            </if>
+        </where>
+        ORDER BY data_date DESC, user_id ASC
+    </select>
+
+
+    <insert id="upsertTenantProfiles">
+        INSERT INTO tenant_profile_features (
+            user_id, phone, nickname,
+            agreement_id, apartment_id, room_id,
+            lease_start_date, lease_end_date, lease_term_months,
+            rent_amount, deposit_amount, payment_type_id,
+            browse_cnt_30d, last_browse_time,
+            appointment_cnt_30d, last_appointment_time,
+            activity_level_tag, intention_tag, value_level_tag, payment_behavior_tag,
+            data_date, created_at, updated_at
+        )
+        SELECT
+            u.id,
+            u.phone,
+            u.nickname,
+            lc.agreement_id,
+            lc.apartment_id,
+            lc.room_id,
+            lc.lease_start_date,
+            lc.lease_end_date,
+            lc.lease_term_months,
+            lc.rent_amount,
+            lc.deposit_amount,
+            lc.payment_type_id,
+            COALESCE(b.browse_cnt_30d, 0),
+            b.last_browse_time,
+            COALESCE(a.appointment_cnt_30d, 0),
+            a.last_appointment_time,
+            CASE
+                WHEN COALESCE(b.browse_cnt_30d, 0) >= 5 THEN '高活跃'
+                WHEN COALESCE(b.browse_cnt_30d, 0) BETWEEN 2 AND 4 THEN '中活跃'
+                ELSE '低活跃'
+            END AS activity_level_tag,
+            CASE
+                WHEN COALESCE(a.appointment_cnt_30d, 0) >= 2 THEN '高意向'
+                WHEN COALESCE(a.appointment_cnt_30d, 0) = 1 THEN '中意向'
+                ELSE '低意向'
+            END AS intention_tag,
+            CASE
+                WHEN lc.rent_amount >= 4000 THEN '高价值'
+                WHEN lc.rent_amount BETWEEN 2500 AND 3999 THEN '中价值'
+                ELSE '低价值'
+            END AS value_level_tag,
+            '准时支付' AS payment_behavior_tag,
+            #{dataDate},
+            NOW(),
+            NOW()
+        FROM user_info u
+            LEFT JOIN (
+                SELECT *
+                FROM (
+                    SELECT
+                        la.phone,
+                        la.id AS agreement_id,
+                        la.apartment_id,
+                        la.room_id,
+                        la.lease_start_date,
+                        la.lease_end_date,
+                        TIMESTAMPDIFF(MONTH, la.lease_start_date, la.lease_end_date) AS lease_term_months,
+                        la.rent AS rent_amount,
+                        la.deposit AS deposit_amount,
+                        la.payment_type_id,
+                        ROW_NUMBER() OVER (PARTITION BY la.phone ORDER BY la.lease_start_date DESC) AS rn
+                    FROM lease_agreement la
+                    WHERE la.is_deleted = 0
+                      AND la.status IN (2, 5, 7)
+                ) tmp_contract
+                WHERE tmp_contract.rn = 1
+            ) lc ON lc.phone = u.phone
+            LEFT JOIN (
+                SELECT
+                    bh.user_id,
+                    COUNT(*) AS browse_cnt_30d,
+                    MAX(bh.browse_time) AS last_browse_time
+                FROM browsing_history bh
+                WHERE bh.is_deleted = 0
+                  AND bh.browse_time >= DATE_SUB(#{dataDate}, INTERVAL 30 DAY)
+                GROUP BY bh.user_id
+            ) b ON b.user_id = u.id
+            LEFT JOIN (
+                SELECT
+                    v.user_id,
+                    COUNT(*) AS appointment_cnt_30d,
+                    MAX(v.appointment_time) AS last_appointment_time
+                FROM view_appointment v
+                WHERE v.is_deleted = 0
+                  AND v.appointment_time >= DATE_SUB(#{dataDate}, INTERVAL 30 DAY)
+                GROUP BY v.user_id
+            ) a ON a.user_id = u.id
+        WHERE u.is_deleted = 0
+        ON DUPLICATE KEY UPDATE
+            phone = VALUES(phone),
+            nickname = VALUES(nickname),
+            agreement_id = VALUES(agreement_id),
+            apartment_id = VALUES(apartment_id),
+            room_id = VALUES(room_id),
+            lease_start_date = VALUES(lease_start_date),
+            lease_end_date = VALUES(lease_end_date),
+            lease_term_months = VALUES(lease_term_months),
+            rent_amount = VALUES(rent_amount),
+            deposit_amount = VALUES(deposit_amount),
+            payment_type_id = VALUES(payment_type_id),
+            browse_cnt_30d = VALUES(browse_cnt_30d),
+            last_browse_time = VALUES(last_browse_time),
+            appointment_cnt_30d = VALUES(appointment_cnt_30d),
+            last_appointment_time = VALUES(last_appointment_time),
+            activity_level_tag = VALUES(activity_level_tag),
+            intention_tag = VALUES(intention_tag),
+            value_level_tag = VALUES(value_level_tag),
+            payment_behavior_tag = VALUES(payment_behavior_tag),
+            data_date = VALUES(data_date),
+            updated_at = NOW();
+    </insert>
+</mapper>
