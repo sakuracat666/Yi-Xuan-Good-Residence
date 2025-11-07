@@ -62,4 +62,14 @@ public class Knife4jConfiguration {
                 ).
                 build();
     }
+
+
+    @Bean
+    public GroupedOpenApi repairAPI() {
+        return GroupedOpenApi.builder().group("报修信息").
+                pathsToMatch(
+                        "/app/repair/**"
+                ).
+                build();
+    }
 }

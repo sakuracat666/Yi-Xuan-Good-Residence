@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.lease.web.app.mapper.RepairRequestMapper">
+
+    <resultMap id="RepairItemVoMap" type="com.atguigu.lease.web.app.vo.repair.RepairItemVo" autoMapping="true">
+        <id column="id" property="id"/>
+    </resultMap>
+
+    <select id="pageUserRepairs" resultMap="RepairItemVoMap">
+        SELECT
+            rr.id,
+            rr.title,
+            rr.priority,
+            rr.status,
+            rr.appointment_time,
+            rr.create_time,
+            rp.latest_progress AS latestProgress
+        FROM repair_request rr
+            LEFT JOIN (
+                SELECT
+                    rp.request_id,
+                    rp.content AS latest_progress
+                FROM repair_progress rp
+                INNER JOIN (
+                    SELECT request_id, MAX(create_time) AS max_time
+                    FROM repair_progress
+                    WHERE is_deleted = 0
+                    GROUP BY request_id
+                ) latest ON latest.request_id = rp.request_id AND latest.max_time = rp.create_time
+                WHERE rp.is_deleted = 0
+            ) rp ON rp.request_id = rr.id
+        WHERE rr.is_deleted = 0
+          AND rr.user_id = #{userId}
+        <if test="status != null">
+            AND rr.status = #{status}
+        </if>
+        ORDER BY rr.create_time DESC
+    </select>
+</mapper>
