@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.lease.web.admin.mapper.RepairRequestMapper">
+
+    <select id="pageRepair" resultType="com.atguigu.lease.web.admin.vo.repair.RepairItemVo">
+        SELECT
+            rr.id,
+            rr.title,
+            COALESCE(ui.nickname, ui.phone) AS user_name,
+            ui.phone AS user_phone,
+            ri.room_number,
+            ai.name AS apartment_name,
+            rr.priority,
+            rr.status,
+            rr.appointment_time,
+            rr.create_time,
+            su.name AS handler_name,
+            prog.latest_progress
+        FROM repair_request rr
+                 LEFT JOIN user_info ui ON rr.user_id = ui.id AND ui.is_deleted = 0
+                 LEFT JOIN room_info ri ON rr.room_id = ri.id AND ri.is_deleted = 0
+                 LEFT JOIN apartment_info ai ON ri.apartment_id = ai.id AND ai.is_deleted = 0
+                 LEFT JOIN system_user su ON rr.handler_id = su.id AND su.is_deleted = 0
+                 LEFT JOIN (
+            SELECT rp.request_id,
+                   rp.content AS latest_progress
+            FROM repair_progress rp
+                     INNER JOIN (
+                SELECT request_id, MAX(create_time) AS max_time
+                FROM repair_progress
+                WHERE is_deleted = 0
+                GROUP BY request_id
+            ) latest ON latest.request_id = rp.request_id AND latest.max_time = rp.create_time
+            WHERE rp.is_deleted = 0
+        ) prog ON prog.request_id = rr.id
+        <where>
+            rr.is_deleted = 0
+            <if test="queryVo != null">
+                <if test="queryVo.title != null and queryVo.title != ''">
+                    AND rr.title LIKE CONCAT('%', #{queryVo.title}, '%')
+                </if>
+                <if test="queryVo.userPhone != null and queryVo.userPhone != ''">
+                    AND ui.phone LIKE CONCAT('%', #{queryVo.userPhone}, '%')
+                </if>
+                <if test="queryVo.apartmentName != null and queryVo.apartmentName != ''">
+                    AND ai.name LIKE CONCAT('%', #{queryVo.apartmentName}, '%')
+                </if>
+                <if test="queryVo.status != null">
+                    AND rr.status = #{queryVo.status}
+                </if>
+                <if test="queryVo.priority != null">
+                    AND rr.priority = #{queryVo.priority}
+                </if>
+                <if test="queryVo.handlerId != null">
+                    AND rr.handler_id = #{queryVo.handlerId}
+                </if>
+                <if test="queryVo.createTimeBegin != null">
+                    AND rr.create_time &gt;= #{queryVo.createTimeBegin}
+                </if>
+                <if test="queryVo.createTimeEnd != null">
+                    AND rr.create_time &lt;= #{queryVo.createTimeEnd}
+                </if>
+            </if>
+        </where>
+        ORDER BY rr.create_time DESC
+    </select>
+
+    <select id="selectDetailById" resultType="com.atguigu.lease.web.admin.vo.repair.RepairDetailVo">
+        SELECT
+            rr.id,
+            COALESCE(ui.nickname, ui.phone) AS user_name,
+            ui.phone AS user_phone,
+            ai.name AS apartment_name,
+            ri.room_number,
+            rr.title,
+            rr.description,
+            rr.priority,
+            rr.status,
+            rr.appointment_time,
+            rr.contact_phone,
+            su.name AS handler_name,
+            rr.finish_time,
+            rr.remark,
+            rr.create_time
+        FROM repair_request rr
+                 LEFT JOIN user_info ui ON rr.user_id = ui.id AND ui.is_deleted = 0
+                 LEFT JOIN room_info ri ON rr.room_id = ri.id AND ri.is_deleted = 0
+                 LEFT JOIN apartment_info ai ON ri.apartment_id = ai.id AND ai.is_deleted = 0
+                 LEFT JOIN system_user su ON rr.handler_id = su.id AND su.is_deleted = 0
+        WHERE rr.is_deleted = 0
+          AND rr.id = #{id}
+    </select>
+</mapper>

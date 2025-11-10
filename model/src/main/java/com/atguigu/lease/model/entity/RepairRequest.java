@@ -4,6 +4,7 @@ import com.atguigu.lease.model.enums.RepairPriority;
 import com.atguigu.lease.model.enums.RepairStatus;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -43,6 +44,7 @@ public class RepairRequest extends BaseEntity {
 
     @TableField("appointment_time")
     @Schema(description = "预约上门时间")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date appointmentTime;
 
     @TableField("contact_phone")
@@ -55,6 +57,7 @@ public class RepairRequest extends BaseEntity {
 
     @TableField("finish_time")
     @Schema(description = "完结时间")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date finishTime;
 
     @TableField("remark")

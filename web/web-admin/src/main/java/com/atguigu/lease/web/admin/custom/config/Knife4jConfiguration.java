@@ -73,4 +73,13 @@ public class Knife4jConfiguration {
                         "/admin/profile/tenant/**"
                 ).build();
     }
+
+    @Bean
+    public GroupedOpenApi repairAPI() {
+        return GroupedOpenApi.builder().group("报修信息管理").
+                pathsToMatch(
+                        "/admin/repair/**"
+                ).
+                build();
+    }
 }
