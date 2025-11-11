@@ -1,7 +1,7 @@
 package com.atguigu.lease.web.admin.vo.system.user;
 
+import com.atguigu.lease.model.enums.SystemUserType;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Schema(description = "员工基本信息")
@@ -13,5 +13,8 @@ public class SystemUserInfoVo {
 
     @Schema(description = "用户头像")
     private String avatarUrl;
+
+    @Schema(description = "用户类型")
+    private SystemUserType type;
 
 }

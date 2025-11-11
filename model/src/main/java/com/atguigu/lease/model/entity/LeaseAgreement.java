@@ -1,8 +1,8 @@
 package com.atguigu.lease.model.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import com.atguigu.lease.model.enums.LeaseSourceType;
 import com.atguigu.lease.model.enums.LeaseStatus;
+import com.atguigu.lease.model.enums.PaymentStatus;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -64,16 +64,16 @@ public class LeaseAgreement extends BaseEntity {
     @TableField(value = "payment_type_id")
     private Long paymentTypeId;
 
+    @Schema(description = "支付订单ID")
+    @TableField(value = "payment_order_id")
+    private Long paymentOrderId;
+
     @Schema(description = "租约状态")
     @TableField(value = "status")
     private LeaseStatus status;
 
-    @Schema(description = "租约来源")
-    @TableField(value = "source_type")
-    private LeaseSourceType sourceType;
-
-    @Schema(description = "备注信息")
-    @TableField(value = "additional_info")
-    private String additionalInfo;
+    @Schema(description = "支付状态")
+    @TableField(value = "payment_status")
+    private PaymentStatus paymentStatus;
 
 }

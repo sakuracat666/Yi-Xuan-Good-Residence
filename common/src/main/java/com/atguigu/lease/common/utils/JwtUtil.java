@@ -2,6 +2,7 @@ package com.atguigu.lease.common.utils;
 
 import com.atguigu.lease.common.exception.LeaseException;
 import com.atguigu.lease.common.result.ResultCodeEnum;
+import com.atguigu.lease.model.enums.SystemUserType;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 
@@ -21,15 +22,29 @@ public class JwtUtil {
      * @return 返回生成的JWT令牌字符串
      */
     public static String createToken(Long userId, String username) {
-        // 构建JWT令牌，设置过期时间、主题、用户信息，并使用HS256算法进行签名
-        String jwt = Jwts.builder()
-                .setExpiration(new Date(System.currentTimeMillis() + 36000000)) // 设置令牌过期时间为当前时间加上10小时（以毫秒为单位）
-                .setSubject("LOGIN_USER") // 设置令牌主题为LOGIN_USER
-                .claim("username", username) // 在令牌中添加用户名信息
-                .claim("userId", userId) // 在令牌中添加用户ID信息
-                .signWith(secretKey, SignatureAlgorithm.HS256) // 使用预定义的密钥和HS256算法对令牌进行签名
-                .compact(); // 将构建好的JWT对象压缩为紧凑的字符串表示形式
-        return jwt; // 返回生成的JWT令牌
+        return createToken(userId, username, null);
+    }
+
+    /**
+     * 创建包含用户类型的JWT令牌
+     * 该方法在基础用户信息之外将用户类型写入令牌，方便后续权限校验
+     *
+     * @param userId   用户ID
+     * @param username 用户名
+     * @param userType 用户类型，可为空
+     * @return 生成的JWT令牌
+     */
+    public static String createToken(Long userId, String username, SystemUserType userType) {
+        JwtBuilder builder = Jwts.builder()
+                .setExpiration(new Date(System.currentTimeMillis() + 36000000))
+                .setSubject("LOGIN_USER")
+                .claim("username", username)
+                .claim("userId", userId)
+                .signWith(secretKey, SignatureAlgorithm.HS256);
+        if (userType != null) {
+            builder.claim("userType", userType.name());
+        }
+        return builder.compact();
     }
 
 

@@ -94,7 +94,7 @@ public class LoginServiceImpl implements LoginService {
         }
 
         //7.创建JWT，并响应给浏览器。
-        return JwtUtil.createToken(systemUser.getId(), systemUser.getUsername());
+        return JwtUtil.createToken(systemUser.getId(), systemUser.getUsername(), systemUser.getType());
     }
 
     /**
