@@ -28,9 +28,6 @@ public class LeaseAgreementController {
     @Operation(summary = "保存或修改租约信息")
     @PostMapping("saveOrUpdate")
     public Result saveOrUpdate(@RequestBody LeaseAgreement leaseAgreement) {
-        if (leaseAgreement.getId() == null){
-            throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
-        }
         leaseAgreementService.saveOrUpdate(leaseAgreement);
         return Result.ok();
     }
