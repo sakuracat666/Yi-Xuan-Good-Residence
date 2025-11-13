@@ -11,6 +11,8 @@ import com.atguigu.lease.web.app.mapper.LeaseAgreementMapper;
 import com.atguigu.lease.web.app.mapper.PaymentOrderMapper;
 import com.atguigu.lease.web.app.service.PaymentService;
 import com.atguigu.lease.web.app.vo.payment.PaymentCreateRequest;
+import com.atguigu.lease.web.app.vo.payment.PaymentHistoryItemVo;
+import com.atguigu.lease.web.app.vo.payment.PaymentHistorySummaryVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
@@ -163,5 +166,23 @@ public class PaymentServiceImpl implements PaymentService {
                 .set(LeaseAgreement::getPaymentStatus, PaymentStatus.SUCCESS)
                 .set(LeaseAgreement::getStatus, LeaseStatus.SIGNED);
         leaseAgreementMapper.update(null, updateWrapper);
+    }
+
+    /**
+     * 查询当前租客已支付账单汇总信息
+     *
+     * @param loginUser 当前登录用户
+     * @return 已支付账单汇总数据
+     */
+    @Override
+    public PaymentHistorySummaryVo listPaidHistory(LoginUser loginUser) {
+        String phone = loginUser.getUsername();
+        List<PaymentHistoryItemVo> items = paymentOrderMapper.selectPaidListByPhone(phone);
+        BigDecimal totalAmount = Optional.ofNullable(paymentOrderMapper.sumPaidAmountByPhone(phone)).orElse(BigDecimal.ZERO);
+
+        PaymentHistorySummaryVo summaryVo = new PaymentHistorySummaryVo();
+        summaryVo.setItems(items);
+        summaryVo.setTotalPaidAmount(totalAmount);
+        return summaryVo;
     }
 }

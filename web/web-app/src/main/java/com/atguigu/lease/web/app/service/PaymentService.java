@@ -3,6 +3,7 @@ package com.atguigu.lease.web.app.service;
 import com.atguigu.lease.common.login.LoginUser;
 import com.atguigu.lease.model.entity.PaymentOrder;
 import com.atguigu.lease.web.app.vo.payment.PaymentCreateRequest;
+import com.atguigu.lease.web.app.vo.payment.PaymentHistorySummaryVo;
 
 /**
  * 支付业务接口
@@ -33,4 +34,12 @@ public interface PaymentService {
      * @param orderNo 商户订单号
      */
     void mockPaySuccess(String orderNo);
+
+    /**
+     * 查询当前租客已支付账单汇总信息
+     *
+     * @param loginUser 当前登录用户
+     * @return 已支付账单汇总数据
+     */
+    PaymentHistorySummaryVo listPaidHistory(LoginUser loginUser);
 }

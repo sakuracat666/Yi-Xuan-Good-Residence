@@ -6,6 +6,7 @@ import com.atguigu.lease.common.result.Result;
 import com.atguigu.lease.model.entity.PaymentOrder;
 import com.atguigu.lease.web.app.service.PaymentService;
 import com.atguigu.lease.web.app.vo.payment.PaymentCreateRequest;
+import com.atguigu.lease.web.app.vo.payment.PaymentHistorySummaryVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -62,5 +63,18 @@ public class PaymentController {
     public Result<Void> mockPaySuccess(@PathVariable String orderNo) {
         paymentService.mockPaySuccess(orderNo);
         return Result.ok();
+    }
+
+    /**
+     * 查询当前用户已支付账单汇总
+     *
+     * @return 已支付账单汇总信息
+     */
+    @Operation(summary = "查询已支付账单汇总")
+    @GetMapping("/order/paid/history")
+    public Result<PaymentHistorySummaryVo> listPaidHistory() {
+        LoginUser loginUser = LoginUserHolder.getLoginUser();
+        PaymentHistorySummaryVo summaryVo = paymentService.listPaidHistory(loginUser);
+        return Result.ok(summaryVo);
     }
 }

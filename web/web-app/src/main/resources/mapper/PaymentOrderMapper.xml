@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.lease.web.app.mapper.PaymentOrderMapper">
+
+    <resultMap id="PaymentHistoryItemMap" type="com.atguigu.lease.web.app.vo.payment.PaymentHistoryItemVo">
+        <id property="id" column="id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="leaseAgreementId" column="lease_agreement_id"/>
+        <result property="subject" column="subject"/>
+        <result property="amountTotal" column="amount_total"/>
+        <result property="successTime" column="success_time"/>
+        <result property="apartmentName" column="apartment_name"/>
+        <result property="roomNumber" column="room_number"/>
+    </resultMap>
+
+    <select id="selectPaidListByPhone" resultMap="PaymentHistoryItemMap">
+        SELECT
+            po.id,
+            po.order_no,
+            po.lease_agreement_id,
+            po.subject,
+            po.amount_total,
+            po.success_time,
+            ai.name AS apartment_name,
+            ri.room_number
+        FROM payment_order po
+                 LEFT JOIN lease_agreement la ON po.lease_agreement_id = la.id AND la.is_deleted = 0
+                 LEFT JOIN room_info ri ON la.room_id = ri.id AND ri.is_deleted = 0
+                 LEFT JOIN apartment_info ai ON ri.apartment_id = ai.id AND ai.is_deleted = 0
+        WHERE po.is_deleted = 0
+          AND po.status = 1
+          AND la.phone = #{phone}
+        ORDER BY po.success_time DESC
+    </select>
+
+    <select id="sumPaidAmountByPhone" resultType="java.math.BigDecimal">
+        SELECT
+            COALESCE(SUM(po.amount_total), 0)
+        FROM payment_order po
+                 LEFT JOIN lease_agreement la ON po.lease_agreement_id = la.id AND la.is_deleted = 0
+        WHERE po.is_deleted = 0
+          AND po.status = 1
+          AND la.phone = #{phone}
+    </select>
+</mapper>
