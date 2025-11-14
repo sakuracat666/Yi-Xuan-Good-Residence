@@ -15,4 +15,13 @@ public class UserInfoVo {
     @Schema(description = "用户头像")
     private String avatarUrl;
 
+    @Schema(description = "手机号")
+    private String phone;
+
+    @Schema(description = "性别：0-保密 1-男 2-女")
+    private Integer gender;
+
+    @Schema(description = "个性签名")
+    private String signature;
+
 }

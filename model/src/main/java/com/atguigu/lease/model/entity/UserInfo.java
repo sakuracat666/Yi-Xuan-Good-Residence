@@ -22,7 +22,7 @@ public class UserInfo extends BaseEntity {
     private String phone;
 
     @Schema(description = "密码")
-    @TableField(value = "password",select = false)
+    @TableField(value = "password", select = false)
     private String password;
 
     @Schema(description = "头像url")
@@ -37,5 +37,12 @@ public class UserInfo extends BaseEntity {
     @TableField(value = "status")
     private BaseStatus status;
 
+    @Schema(description = "性别：0-保密 1-男 2-女")
+    @TableField(value = "gender")
+    private Integer gender;
+
+    @Schema(description = "个性签名")
+    @TableField(value = "signature")
+    private String signature;
 
 }
