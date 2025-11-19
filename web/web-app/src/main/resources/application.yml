@@ -39,6 +39,11 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 springdoc:
   default-flat-param-object: true
+minio:
+  endpoint: http://192.168.10.101:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket-name: lease
 aliyun:
   sms:
     access-key-id: LTAI5tCXKmgBeotmnKswDaEk

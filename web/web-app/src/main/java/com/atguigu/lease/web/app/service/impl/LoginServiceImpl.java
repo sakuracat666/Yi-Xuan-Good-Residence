@@ -103,8 +103,8 @@ public class LoginServiceImpl implements LoginService {
             userInfo = new UserInfo();
             userInfo.setPhone(loginVo.getPhone());
             userInfo.setStatus(BaseStatus.ENABLE);
-            userInfo.setAvatarUrl(
-                    "http://127.0.0.1:9000/lease/txurl/tx.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=HQ9LV57PXPFPZ4MUS0TQ%2F20250919%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250919T091816Z&X-Amz-Expires=604800&X-Amz-Security-Token=eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3NLZXkiOiJIUTlMVjU3UFhQRlBaNE1VUzBUUSIsImV4cCI6MTc1ODMxNjMzOSwicGFyZW50IjoibWluaW9hZG1pbiJ9.uNjQNJpcWdwhIK6AHC2mHZGcowHnFRgR2YG0tM1_BrGHjUQKqPwxOBYW7dpZGulCoSgT4d5T_2dxQE7Lfx2Ezw&X-Amz-SignedHeaders=host&versionId=null&X-Amz-Signature=d06c99d00573e5455bc0cd2392ad13c86e1263fa295e03ca7f534acc30cf1075");
+            // 设置默认头像地址，使用简短的固定 URL，避免超出数据库字段长度
+            userInfo.setAvatarUrl("http://127.0.0.1:9000/lease/txurl/tx.jpg");
             userInfo.setNickname("用户-" + loginVo.getPhone().substring(7));
 
             userInfoMapper.insert(userInfo);

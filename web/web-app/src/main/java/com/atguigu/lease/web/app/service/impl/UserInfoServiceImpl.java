@@ -35,6 +35,9 @@ public class UserInfoServiceImpl extends ServiceImpl<UserInfoMapper, UserInfo>
         if (submitVo.getGender() != null) {
             userInfo.setGender(submitVo.getGender());
         }
+        if (submitVo.getAvatarUrl() != null) {
+            userInfo.setAvatarUrl(submitVo.getAvatarUrl());
+        }
         if (submitVo.getSignature() != null) {
             userInfo.setSignature(submitVo.getSignature());
         }
