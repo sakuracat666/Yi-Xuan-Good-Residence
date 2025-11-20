@@ -1,6 +1,7 @@
 package com.atguigu.lease.web.admin.service.impl;
 
 import com.atguigu.lease.model.entity.*;
+import com.atguigu.lease.model.enums.PaymentStatus;
 import com.atguigu.lease.web.admin.mapper.*;
 import com.atguigu.lease.web.admin.service.LeaseAgreementService;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementQueryVo;
@@ -33,10 +34,9 @@ public class LeaseAgreementServiceImpl extends ServiceImpl<LeaseAgreementMapper,
     @Autowired
     private LeaseTermMapper leaseTermMapper;
 
-
     @Override
     public IPage<AgreementVo> pageviewAgreement(IPage<AgreementVo> page, AgreementQueryVo queryVo) {
-        return leaseAgreementMapper.pageviewAgreement(page,queryVo);
+        return leaseAgreementMapper.pageviewAgreement(page, queryVo);
     }
 
     @Override
@@ -64,11 +64,22 @@ public class LeaseAgreementServiceImpl extends ServiceImpl<LeaseAgreementMapper,
         agreementVo.setPaymentType(paymentType);
         agreementVo.setLeaseTerm(leaseTerm);
         return agreementVo;
+    }
 
-
+    /**
+     * 保存或修改租约信息
+     *
+     * 新增租约时，如果未显式设置支付状态，则默认置为待支付，
+     * 以便用户端首页可以根据 paymentStatus 展示待支付提醒。
+     */
+    @Override
+    public boolean saveOrUpdate(LeaseAgreement entity) {
+        if (entity.getId() == null) {
+            // 新增租约：如果未设置支付状态，则默认待支付
+            if (entity.getPaymentStatus() == null) {
+                entity.setPaymentStatus(PaymentStatus.WAITING);
+            }
+        }
+        return super.saveOrUpdate(entity);
     }
 }
-
-
-
-

@@ -13,6 +13,7 @@ import com.atguigu.lease.web.app.service.PaymentService;
 import com.atguigu.lease.web.app.vo.payment.PaymentCreateRequest;
 import com.atguigu.lease.web.app.vo.payment.PaymentHistoryItemVo;
 import com.atguigu.lease.web.app.vo.payment.PaymentHistorySummaryVo;
+import com.atguigu.lease.web.app.vo.payment.HomePendingPaymentVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -178,11 +179,18 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentHistorySummaryVo listPaidHistory(LoginUser loginUser) {
         String phone = loginUser.getUsername();
         List<PaymentHistoryItemVo> items = paymentOrderMapper.selectPaidListByPhone(phone);
-        BigDecimal totalAmount = Optional.ofNullable(paymentOrderMapper.sumPaidAmountByPhone(phone)).orElse(BigDecimal.ZERO);
+        BigDecimal totalAmount = Optional.ofNullable(paymentOrderMapper.sumPaidAmountByPhone(phone))
+                .orElse(BigDecimal.ZERO);
 
         PaymentHistorySummaryVo summaryVo = new PaymentHistorySummaryVo();
         summaryVo.setItems(items);
         summaryVo.setTotalPaidAmount(totalAmount);
         return summaryVo;
+    }
+
+    @Override
+    public HomePendingPaymentVo getHomePendingOrder(LoginUser loginUser) {
+        String phone = loginUser.getUsername();
+        return leaseAgreementMapper.selectLatestPendingByPhone(phone);
     }
 }

@@ -7,6 +7,7 @@ import com.atguigu.lease.model.entity.PaymentOrder;
 import com.atguigu.lease.web.app.service.PaymentService;
 import com.atguigu.lease.web.app.vo.payment.PaymentCreateRequest;
 import com.atguigu.lease.web.app.vo.payment.PaymentHistorySummaryVo;
+import com.atguigu.lease.web.app.vo.payment.HomePendingPaymentVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -76,5 +77,13 @@ public class PaymentController {
         LoginUser loginUser = LoginUserHolder.getLoginUser();
         PaymentHistorySummaryVo summaryVo = paymentService.listPaidHistory(loginUser);
         return Result.ok(summaryVo);
+    }
+
+    @Operation(summary = "查询首页待支付订单")
+    @GetMapping("/order/pending/home")
+    public Result<HomePendingPaymentVo> getHomePendingOrder() {
+        LoginUser loginUser = LoginUserHolder.getLoginUser();
+        HomePendingPaymentVo vo = paymentService.getHomePendingOrder(loginUser);
+        return Result.ok(vo);
     }
 }

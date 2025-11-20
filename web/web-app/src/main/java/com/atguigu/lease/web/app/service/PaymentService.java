@@ -4,6 +4,7 @@ import com.atguigu.lease.common.login.LoginUser;
 import com.atguigu.lease.model.entity.PaymentOrder;
 import com.atguigu.lease.web.app.vo.payment.PaymentCreateRequest;
 import com.atguigu.lease.web.app.vo.payment.PaymentHistorySummaryVo;
+import com.atguigu.lease.web.app.vo.payment.HomePendingPaymentVo;
 
 /**
  * 支付业务接口
@@ -42,4 +43,12 @@ public interface PaymentService {
      * @return 已支付账单汇总数据
      */
     PaymentHistorySummaryVo listPaidHistory(LoginUser loginUser);
+
+    /**
+     * 查询首页待支付订单提示信息
+     *
+     * @param loginUser 当前登录用户
+     * @return 待支付订单信息
+     */
+    HomePendingPaymentVo getHomePendingOrder(LoginUser loginUser);
 }

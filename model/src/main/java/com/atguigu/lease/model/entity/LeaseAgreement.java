@@ -68,11 +68,11 @@ public class LeaseAgreement extends BaseEntity {
     @TableField(value = "payment_order_id")
     private Long paymentOrderId;
 
-    @Schema(description = "租约状态")
+    @Schema(description = "租约状态（1:签约待确认，2:已签约，3:已取消，4:已到期，5:退租待确认，6:已退租，7:续约待确认）")
     @TableField(value = "status")
     private LeaseStatus status;
 
-    @Schema(description = "支付状态")
+    @Schema(description = "支付状态：0待支付 1已支付 2已关闭 3已退款")
     @TableField(value = "payment_status")
     private PaymentStatus paymentStatus;
 
