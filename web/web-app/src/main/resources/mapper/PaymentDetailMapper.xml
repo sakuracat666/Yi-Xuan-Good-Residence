@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.lease.web.app.mapper.PaymentDetailMapper">
+
+  <!-- 根据支付订单ID查询支付明细列表 -->
+  <select id="selectByPaymentOrderId" resultType="com.atguigu.lease.model.entity.PaymentDetail">
+    SELECT id, payment_order_id, pay_method, amount, status, transaction_no, pay_time,
+    refund_amount, refund_time, create_time, update_time, is_deleted FROM payment_detail WHERE
+    payment_order_id = #{paymentOrderId} AND is_deleted = 0 ORDER BY id ASC </select>
+
+</mapper>

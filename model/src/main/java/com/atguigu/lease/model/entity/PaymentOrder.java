@@ -1,5 +1,6 @@
 package com.atguigu.lease.model.entity;
 
+import com.atguigu.lease.model.enums.PayMethodCombination;
 import com.atguigu.lease.model.enums.PaymentStatus;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -43,6 +44,26 @@ public class PaymentOrder extends BaseEntity {
     @Schema(description = "支付渠道")
     @TableField("pay_channel")
     private String payChannel;
+
+    @Schema(description = "支付方式组合：0未选择 1纯余额 2纯微信 3混合支付")
+    @TableField("pay_method")
+    private PayMethodCombination payMethod;
+
+    @Schema(description = "余额支付金额")
+    @TableField("balance_amount")
+    private BigDecimal balanceAmount;
+
+    @Schema(description = "微信支付金额")
+    @TableField("wechat_amount")
+    private BigDecimal wechatAmount;
+
+    @Schema(description = "退款状态：0无退款 1部分退款 2全额退款")
+    @TableField("refund_status")
+    private Integer refundStatus;
+
+    @Schema(description = "已退款金额")
+    @TableField("refunded_amount")
+    private BigDecimal refundedAmount;
 
     @Schema(description = "H5 支付跳转链接")
     @TableField("h5_url")

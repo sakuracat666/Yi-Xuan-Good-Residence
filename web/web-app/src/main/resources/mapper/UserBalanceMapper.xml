@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.lease.web.app.mapper.UserBalanceMapper">
+
+    <!-- 扣减用户余额（使用乐观锁） -->
+    <update id="deductBalance">
+        UPDATE user_balance
+        SET balance = balance - #{amount},
+            total_consume = total_consume + #{amount},
+            version = version + 1,
+            update_time = NOW()
+        WHERE user_id = #{userId}
+          AND version = #{version}
+          AND balance >= #{amount}
+          AND is_deleted = 0
+    </update>
+
+    <!-- 增加用户余额（退款使用） -->
+    <update id="addBalance">
+        UPDATE user_balance
+        SET balance = balance + #{amount},
+            total_refund = total_refund + #{amount},
+            version = version + 1,
+            update_time = NOW()
+        WHERE user_id = #{userId}
+          AND version = #{version}
+          AND is_deleted = 0
+    </update>
+
+</mapper>
