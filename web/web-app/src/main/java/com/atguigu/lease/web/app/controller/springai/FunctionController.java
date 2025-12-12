@@ -143,6 +143,7 @@ public class FunctionController {
 
     /**
      * 解析用户位置信息
+     * 支持地址信息和经纬度，如果只有经纬度则尝试逆地理编码
      *
      * @param userLocation JSON格式的位置信息
      * @return 格式化的位置描述字符串
@@ -165,6 +166,9 @@ public class FunctionController {
             String district = getJsonString(locationNode, "district");
             // 获取详细地址
             String address = getJsonString(locationNode, "address");
+            // 获取经纬度
+            Double latitude = getJsonDouble(locationNode, "latitude");
+            Double longitude = getJsonDouble(locationNode, "longitude");
 
             // 构建位置描述
             if (!province.isEmpty()) {
@@ -184,8 +188,19 @@ public class FunctionController {
             }
 
             String result = locationDesc.toString();
+
+            // 如果没有地址信息但有经纬度，尝试逆地理编码
+            if (result.isEmpty() && latitude != null && longitude != null) {
+                log.info("尝试根据经纬度进行逆地理编码: lat={}, lon={}", latitude, longitude);
+                result = reverseGeocode(latitude, longitude);
+            }
+
             if (!result.isEmpty()) {
                 log.info("用户位置已解析: {}", result);
+            } else if (latitude != null && longitude != null) {
+                // 即使逆地理编码失败，也记录经纬度信息
+                log.info("用户位置（经纬度）: lat={}, lon={}", latitude, longitude);
+                result = String.format("经纬度坐标(%.4f, %.4f)", latitude, longitude);
             }
 
             return result;
@@ -193,6 +208,101 @@ public class FunctionController {
             log.warn("解析用户位置信息失败: {}", e.getMessage());
             return "";
         }
+    }
+
+    /**
+     * 从JsonNode中安全获取Double值
+     *
+     * @param node  JsonNode对象
+     * @param field 字段名
+     * @return Double值，如果不存在则返回null
+     */
+    private Double getJsonDouble(JsonNode node, String field) {
+        if (node == null || !node.has(field) || node.get(field).isNull()) {
+            return null;
+        }
+        try {
+            return node.get(field).asDouble();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 逆地理编码 - 将经纬度转换为地址信息
+     * 使用高德地图API（需要配置API Key）
+     *
+     * @param latitude  纬度
+     * @param longitude 经度
+     * @return 地址描述字符串
+     */
+    private String reverseGeocode(Double latitude, Double longitude) {
+        // 高德地图Web服务API Key（需要在高德开放平台申请）
+        // 如果没有配置，返回空字符串
+        String amapKey = System.getenv("AMAP_KEY");
+        if (amapKey == null || amapKey.isEmpty()) {
+            // 尝试从系统属性获取
+            amapKey = System.getProperty("amap.key");
+        }
+
+        if (amapKey == null || amapKey.isEmpty()) {
+            log.debug("未配置高德地图API Key，跳过逆地理编码");
+            return "";
+        }
+
+        try {
+            // 高德坐标格式：经度,纬度
+            String location = String.format("%.6f,%.6f", longitude, latitude);
+            String url = String.format(
+                    "https://restapi.amap.com/v3/geocode/regeo?key=%s&location=%s&extensions=base",
+                    amapKey, location);
+
+            // 发送HTTP请求
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .timeout(java.time.Duration.ofSeconds(5))
+                    .GET()
+                    .build();
+
+            java.net.http.HttpResponse<String> response = client.send(request,
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                JsonNode data = objectMapper.readTree(response.body());
+                if ("1".equals(data.path("status").asText())) {
+                    JsonNode regeocode = data.path("regeocode");
+                    JsonNode addressComponent = regeocode.path("addressComponent");
+
+                    String province = addressComponent.path("province").asText("");
+                    String city = addressComponent.path("city").asText("");
+                    String district = addressComponent.path("district").asText("");
+
+                    // 如果city为空，使用province
+                    if (city.isEmpty() || "[]".equals(city)) {
+                        city = province;
+                    }
+
+                    StringBuilder result = new StringBuilder();
+                    if (!province.isEmpty() && !"[]".equals(province)) {
+                        result.append(province);
+                    }
+                    if (!city.isEmpty() && !"[]".equals(city) && !city.equals(province)) {
+                        result.append(city);
+                    }
+                    if (!district.isEmpty() && !"[]".equals(district)) {
+                        result.append(district);
+                    }
+
+                    log.info("逆地理编码成功: {}", result);
+                    return result.toString();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("逆地理编码失败: {}", e.getMessage());
+        }
+
+        return "";
     }
 
     /**
