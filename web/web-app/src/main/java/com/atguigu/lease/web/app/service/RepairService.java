@@ -1,7 +1,6 @@
 package com.atguigu.lease.web.app.service;
 
 import com.atguigu.lease.model.entity.RepairRequest;
-import com.atguigu.lease.model.entity.RoomInfo;
 import com.atguigu.lease.model.enums.RepairStatus;
 import com.atguigu.lease.web.app.vo.repair.RepairDetailVo;
 import com.atguigu.lease.web.app.vo.repair.RepairItemVo;
@@ -41,5 +40,5 @@ public interface RepairService extends IService<RepairRequest> {
     /**
      * 获取所有房间
      */
-    List<RepairRoomNumberApartIdVo> getAllRooms();
+    List<RepairRoomNumberApartIdVo> getAllRooms(String phone);
 }

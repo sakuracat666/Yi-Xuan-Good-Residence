@@ -39,13 +39,13 @@ public class PaymentOrderItemVo {
     @Schema(description = "支付金额")
     private BigDecimal amountTotal;
 
-    @Schema(description = "余额支付金额")
+    @Schema(description = "支付宝支付金额")
     private BigDecimal balanceAmount;
 
     @Schema(description = "微信支付金额")
     private BigDecimal wechatAmount;
 
-    @Schema(description = "支付方式组合：0-未选择 1-纯余额 2-纯微信 3-混合支付")
+    @Schema(description = "支付方式组合：0-未选择 1-纯支付宝 2-纯微信 3-混合支付")
     private PayMethodCombination payMethod;
 
     @Schema(description = "支付状态")

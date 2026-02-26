@@ -2,15 +2,23 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.atguigu.lease.web.app.mapper.LeaseAgreementMapper">
 
-    <resultMap id="AgreementItemVoMap" type="com.atguigu.lease.web.app.vo.agreement.AgreementItemVo"
-        autoMapping="true">
+    <resultMap
+        id="AgreementItemVoMap"
+        type="com.atguigu.lease.web.app.vo.agreement.AgreementItemVo"
+        autoMapping="true"
+    >
         <id property="id" column="id" />
-        <collection property="roomGraphVoList" ofType="com.atguigu.lease.web.app.vo.graph.GraphVo"
-            autoMapping="true" />
+        <collection
+            property="roomGraphVoList"
+            ofType="com.atguigu.lease.web.app.vo.graph.GraphVo"
+            autoMapping="true"
+        />
     </resultMap>
 
-    <resultMap id="HomePendingPaymentMap"
-        type="com.atguigu.lease.web.app.vo.payment.HomePendingPaymentVo">
+    <resultMap
+        id="HomePendingPaymentMap"
+        type="com.atguigu.lease.web.app.vo.payment.HomePendingPaymentVo"
+    >
         <result property="leaseAgreementId" column="id" />
         <result property="subject" column="subject" />
         <result property="amountTotal" column="amount_total" />
@@ -18,19 +26,124 @@
         <result property="roomNumber" column="room_number" />
     </resultMap>
 
-    <select id="listItemByPhone" resultMap="AgreementItemVoMap"> SELECT la.id, la.lease_start_date,
-        la.lease_end_date, la.rent, la.payment_type_id, la.status AS lease_status, la.source_type,
-        ai.name AS apartment_name, ri.room_number, gi.name, gi.url FROM lease_agreement la LEFT JOIN
-        apartment_info ai ON la.apartment_id = ai.id AND ai.is_deleted = 0 LEFT JOIN room_info ri ON
-        la.room_id = ri.id AND ri.is_deleted = 0 LEFT JOIN graph_info gi ON gi.item_type = 2 AND
-        gi.item_id = ri.id AND gi.is_deleted = 0 WHERE la.is_deleted = 0 AND la.phone = #{phone}
-        ORDER BY la.create_time DESC </select>
+    <select id="listItemByPhone" resultMap="AgreementItemVoMap">
+        SELECT
+            la.id,
+            la.lease_start_date,
+            la.lease_end_date,
+            la.rent,
+            la.payment_type_id,
+            la.payment_status AS payment_status,
+            la.status AS lease_status,
+            la.source_type,
+            ai.name AS apartment_name,
+            ri.room_number,
+            gi.name,
+            gi.url
+        FROM lease_agreement la
+            LEFT JOIN apartment_info ai ON la.apartment_id = ai.id AND ai.is_deleted = 0
+            LEFT JOIN room_info ri ON la.room_id = ri.id AND ri.is_deleted = 0
+            LEFT JOIN graph_info gi ON gi.item_type = 2 AND gi.item_id = ri.id AND gi.is_deleted = 0
+        WHERE la.is_deleted = 0
+          AND la.phone = #{phone}
+        ORDER BY la.create_time DESC
+    </select>
 
-    <select id="selectLatestPendingByPhone" resultMap="HomePendingPaymentMap"> SELECT la.id,
-        CONCAT(ai.name, ' ', ri.room_number, '房间租约') AS subject, COALESCE(la.rent, 0) +
-        COALESCE(la.deposit, 0) AS amount_total, ai.name AS apartment_name, ri.room_number FROM
-        lease_agreement la LEFT JOIN apartment_info ai ON la.apartment_id = ai.id AND ai.is_deleted
-        = 0 LEFT JOIN room_info ri ON la.room_id = ri.id AND ri.is_deleted = 0 WHERE la.is_deleted =
-        0 AND la.phone = #{phone} AND la.payment_status = 0 AND la.status IN (1, 2, 7) ORDER BY
-        la.create_time DESC LIMIT 1 </select>
+    <select id="selectLatestPendingByPhone" resultMap="HomePendingPaymentMap">
+        SELECT
+            la.id,
+            CONCAT(ai.name, ' ', ri.room_number, '房间租约') AS subject,
+            (
+                CASE
+                    WHEN (
+                        CASE
+                            WHEN EXISTS (
+                                SELECT 1
+                                FROM payment_order po_h
+                                WHERE po_h.is_deleted = 0
+                                  AND po_h.status = 1
+                                  AND po_h.lease_agreement_id = la.id
+                                  AND po_h.term_start_date IS NOT NULL
+                                  AND po_h.term_start_date != la.lease_start_date
+                                  AND (
+                                      COALESCE(po_h.deposit_amount, 0) > 0
+                                      OR COALESCE(po_h.amount_total, 0) > 0
+                                  )
+                            ) THEN 0
+                            ELSE GREATEST(
+                                COALESCE(la.deposit, 0) - COALESCE((
+                                    SELECT SUM(COALESCE(po.deposit_amount, 0))
+                                    FROM payment_order po
+                                    WHERE po.is_deleted = 0
+                                      AND po.status = 1
+                                      AND po.lease_agreement_id = la.id
+                                      AND po.term_start_date = la.lease_start_date
+                                ), 0),
+                                0
+                            )
+                        END
+                    ) > 0
+                    THEN (
+                        CASE
+                            WHEN EXISTS (
+                                SELECT 1
+                                FROM payment_order po_h
+                                WHERE po_h.is_deleted = 0
+                                  AND po_h.status = 1
+                                  AND po_h.lease_agreement_id = la.id
+                                  AND po_h.term_start_date IS NOT NULL
+                                  AND po_h.term_start_date != la.lease_start_date
+                                  AND (
+                                      COALESCE(po_h.deposit_amount, 0) > 0
+                                      OR COALESCE(po_h.amount_total, 0) > 0
+                                  )
+                            ) THEN 0
+                            ELSE GREATEST(
+                                COALESCE(la.deposit, 0) - COALESCE((
+                                    SELECT SUM(COALESCE(po.deposit_amount, 0))
+                                    FROM payment_order po
+                                    WHERE po.is_deleted = 0
+                                      AND po.status = 1
+                                      AND po.lease_agreement_id = la.id
+                                      AND po.term_start_date = la.lease_start_date
+                                ), 0),
+                                0
+                            )
+                        END
+                    )
+                    ELSE GREATEST(
+                        COALESCE(la.rent, 0) * COALESCE(pt.pay_month_count, 1)
+                        - COALESCE((
+                            SELECT SUM(COALESCE(po.rent_amount, 0))
+                            FROM payment_order po
+                            WHERE po.is_deleted = 0
+                              AND po.status = 1
+                              AND po.lease_agreement_id = la.id
+                              AND po.term_start_date = la.lease_start_date
+                        ), 0)
+                        - COALESCE((
+                            SELECT SUM(COALESCE(po.deposit_amount, 0))
+                            FROM payment_order po
+                            WHERE po.is_deleted = 0
+                              AND po.status = 1
+                              AND po.lease_agreement_id = la.id
+                              AND po.term_start_date = la.lease_start_date
+                        ), 0),
+                        0
+                    )
+                END
+            ) AS amount_total,
+            ai.name AS apartment_name,
+            ri.room_number
+        FROM lease_agreement la
+            LEFT JOIN apartment_info ai ON la.apartment_id = ai.id AND ai.is_deleted = 0
+            LEFT JOIN room_info ri ON la.room_id = ri.id AND ri.is_deleted = 0
+            LEFT JOIN payment_type pt ON la.payment_type_id = pt.id AND pt.is_deleted = 0
+        WHERE la.is_deleted = 0
+          AND la.phone = #{phone}
+          AND la.payment_status = 0
+          AND la.status IN (1, 2, 7)
+        ORDER BY la.create_time DESC
+        LIMIT 1
+    </select>
 </mapper>

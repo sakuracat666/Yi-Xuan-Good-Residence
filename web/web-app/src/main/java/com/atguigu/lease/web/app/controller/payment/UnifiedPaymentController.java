@@ -4,7 +4,6 @@ import com.atguigu.lease.common.login.LoginUser;
 import com.atguigu.lease.common.login.LoginUserHolder;
 import com.atguigu.lease.common.result.Result;
 import com.atguigu.lease.web.app.service.UnifiedPaymentService;
-import com.atguigu.lease.web.app.service.UserBalanceService;
 import com.atguigu.lease.web.app.vo.payment.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * 统一支付接口
- * 支持余额支付、微信支付、混合支付及退款
+ * 支持支付宝支付、微信支付、混合支付及退款
  */
 @RestController
 @RequestMapping("/app/payment/unified")
@@ -24,9 +23,6 @@ public class UnifiedPaymentController {
 
   @Autowired
   private UnifiedPaymentService unifiedPaymentService;
-
-  @Autowired
-  private UserBalanceService userBalanceService;
 
   /**
    * 获取支付预览信息
@@ -46,7 +42,7 @@ public class UnifiedPaymentController {
 
   /**
    * 统一支付接口
-   * 支持纯余额、纯微信、混合支付三种方式
+   * 支持纯支付宝、纯微信、混合支付三种方式
    *
    * @param request 支付请求参数
    * @return 支付响应结果
@@ -57,6 +53,21 @@ public class UnifiedPaymentController {
     LoginUser loginUser = LoginUserHolder.getLoginUser();
     UnifiedPayResponse response = unifiedPaymentService.unifiedPay(loginUser, request);
     return Result.ok(response);
+  }
+
+  /**
+   * 模拟支付宝支付成功回调
+   * 用于测试，实际项目中由支付宝服务器回调
+   *
+   * @param orderNo 商户订单号
+   * @return 操作结果
+   */
+  @Operation(summary = "模拟支付宝支付成功回调")
+  @PostMapping("/alipay/callback/{orderNo}")
+  public Result<Void> mockAlipayPayCallback(
+      @Parameter(description = "商户订单号") @PathVariable String orderNo) {
+    unifiedPaymentService.handleAlipayPayCallback(orderNo);
+    return Result.ok();
   }
 
   /**
@@ -104,18 +115,4 @@ public class UnifiedPaymentController {
     return Result.ok(response);
   }
 
-  /**
-   * 获取用户余额信息
-   *
-   * @return 用户余额信息
-   */
-  @Operation(summary = "获取用户余额信息")
-  @GetMapping("/balance")
-  public Result<UserBalanceVo> getUserBalance() {
-    LoginUser loginUser = LoginUserHolder.getLoginUser();
-    // 根据手机号获取用户ID
-    Long userId = loginUser.getUserId();
-    UserBalanceVo balanceVo = userBalanceService.getUserBalance(userId);
-    return Result.ok(balanceVo);
-  }
 }

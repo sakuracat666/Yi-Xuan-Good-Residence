@@ -25,7 +25,7 @@ public class PaymentDetail extends BaseEntity {
   @TableField("payment_order_id")
   private Long paymentOrderId;
 
-  @Schema(description = "支付方式：1余额 2微信")
+  @Schema(description = "支付方式：1支付宝 2微信")
   @TableField("pay_method")
   private PayMethod payMethod;
 

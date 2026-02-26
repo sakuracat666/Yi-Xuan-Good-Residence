@@ -5,7 +5,7 @@ import com.atguigu.lease.web.app.vo.payment.*;
 
 /**
  * 统一支付服务接口
- * 支持余额支付、微信支付、混合支付及退款
+ * 支持支付宝支付、微信支付、混合支付及退款
  */
 public interface UnifiedPaymentService {
 
@@ -21,13 +21,20 @@ public interface UnifiedPaymentService {
 
   /**
    * 统一支付接口
-   * 支持纯余额、纯微信、混合支付三种方式
+   * 支持纯支付宝、纯微信、混合支付三种方式
    *
    * @param loginUser 当前登录用户
    * @param request   支付请求参数
    * @return 支付响应结果
    */
   UnifiedPayResponse unifiedPay(LoginUser loginUser, UnifiedPayRequest request);
+
+  /**
+   * 支付宝支付回调处理
+   *
+   * @param orderNo 商户订单号
+   */
+  void handleAlipayPayCallback(String orderNo);
 
   /**
    * 微信支付回调处理

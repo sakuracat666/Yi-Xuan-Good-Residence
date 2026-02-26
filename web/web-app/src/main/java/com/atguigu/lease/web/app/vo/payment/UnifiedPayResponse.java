@@ -23,8 +23,8 @@ public class UnifiedPayResponse {
   @Schema(description = "支付总金额（元）")
   private BigDecimal amountTotal;
 
-  @Schema(description = "余额支付金额（元）")
-  private BigDecimal balanceAmount;
+  @Schema(description = "支付宝支付金额（元）")
+  private BigDecimal alipayAmount;
 
   @Schema(description = "微信支付金额（元）")
   private BigDecimal wechatAmount;
@@ -35,8 +35,17 @@ public class UnifiedPayResponse {
   @Schema(description = "支付状态")
   private PaymentStatus status;
 
-  @Schema(description = "余额是否已扣款成功")
-  private Boolean balancePaid;
+  @Schema(description = "支付宝是否已支付成功")
+  private Boolean alipayPaid;
+
+  @Schema(description = "是否需要支付宝支付")
+  private Boolean needAlipayPay;
+
+  @Schema(description = "支付宝H5支付跳转链接（需要支付宝支付时返回）")
+  private String alipayH5Url;
+
+  @Schema(description = "支付宝支付二维码链接（需要支付宝支付时返回）")
+  private String alipayCodeUrl;
 
   @Schema(description = "是否需要微信支付")
   private Boolean needWechatPay;

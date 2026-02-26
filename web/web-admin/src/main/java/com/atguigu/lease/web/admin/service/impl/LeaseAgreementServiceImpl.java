@@ -1,16 +1,21 @@
 package com.atguigu.lease.web.admin.service.impl;
 
 import com.atguigu.lease.model.entity.*;
+import com.atguigu.lease.model.enums.LeaseStatus;
 import com.atguigu.lease.model.enums.PaymentStatus;
+import com.atguigu.lease.common.exception.LeaseException;
+import com.atguigu.lease.common.result.ResultCodeEnum;
 import com.atguigu.lease.web.admin.mapper.*;
 import com.atguigu.lease.web.admin.service.LeaseAgreementService;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementQueryVo;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementVo;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.rmi.dgc.Lease;
 
@@ -64,6 +69,23 @@ public class LeaseAgreementServiceImpl extends ServiceImpl<LeaseAgreementMapper,
         agreementVo.setPaymentType(paymentType);
         agreementVo.setLeaseTerm(leaseTerm);
         return agreementVo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateStatusById(Long id, LeaseStatus status) {
+        LeaseAgreement leaseAgreement = leaseAgreementMapper.selectById(id);
+        if (leaseAgreement == null) {
+            throw new LeaseException(ResultCodeEnum.DATA_ERROR);
+        }
+
+        LambdaUpdateWrapper<LeaseAgreement> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(LeaseAgreement::getId, id).set(LeaseAgreement::getStatus, status);
+        if (LeaseStatus.RENEWING.equals(leaseAgreement.getStatus()) && LeaseStatus.SIGNED.equals(status)) {
+            wrapper.set(LeaseAgreement::getPaymentStatus, PaymentStatus.WAITING)
+                    .set(LeaseAgreement::getPaymentOrderId, null);
+        }
+        leaseAgreementMapper.update(null, wrapper);
     }
 
     /**

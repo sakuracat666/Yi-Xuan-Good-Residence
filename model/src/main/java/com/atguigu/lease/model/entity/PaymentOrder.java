@@ -29,6 +29,11 @@ public class PaymentOrder extends BaseEntity {
     @TableField("lease_agreement_id")
     private Long leaseAgreementId;
 
+    @Schema(description = "租约周期开始日期")
+    @TableField("term_start_date")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private Date termStartDate;
+
     @Schema(description = "订单标题")
     @TableField("subject")
     private String subject;
@@ -45,11 +50,23 @@ public class PaymentOrder extends BaseEntity {
     @TableField("pay_channel")
     private String payChannel;
 
-    @Schema(description = "支付方式组合：0未选择 1纯余额 2纯微信 3混合支付")
+    @Schema(description = "支付方式组合：0未选择 1纯支付宝 2纯微信 3混合支付")
     @TableField("pay_method")
     private PayMethodCombination payMethod;
 
-    @Schema(description = "余额支付金额")
+    @Schema(description = "业务类型：1押金 2租金 3押金+租金")
+    @TableField("biz_type")
+    private Integer bizType;
+
+    @Schema(description = "押金金额")
+    @TableField("deposit_amount")
+    private BigDecimal depositAmount;
+
+    @Schema(description = "租金金额")
+    @TableField("rent_amount")
+    private BigDecimal rentAmount;
+
+    @Schema(description = "支付宝支付金额")
     @TableField("balance_amount")
     private BigDecimal balanceAmount;
 

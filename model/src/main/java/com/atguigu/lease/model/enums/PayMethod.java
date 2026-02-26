@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  */
 public enum PayMethod implements BaseEnum {
 
-  BALANCE(1, "余额支付"),
+  ALIPAY(1, "支付宝支付"),
   WECHAT(2, "微信支付");
 
   @EnumValue

@@ -7,7 +7,6 @@ import com.atguigu.lease.model.entity.*;
 import com.atguigu.lease.model.enums.*;
 import com.atguigu.lease.web.app.mapper.*;
 import com.atguigu.lease.web.app.service.UnifiedPaymentService;
-import com.atguigu.lease.web.app.service.UserBalanceService;
 import com.atguigu.lease.web.app.vo.payment.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -20,20 +19,25 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 
 /**
  * 统一支付服务实现
- * 支持余额支付、微信支付、混合支付及退款
+ * 支持支付宝支付、微信支付、混合支付及退款
  */
 @Service
 public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
 
   private static final DateTimeFormatter ORDER_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
   private static final String QR_CODE_SERVICE = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=";
+  private static final long RENT_PAY_GRACE_MILLIS = 30L * 24 * 60 * 60 * 1000;
 
   @Autowired
   private PaymentOrderMapper paymentOrderMapper;
@@ -48,10 +52,7 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
   private RefundRecordMapper refundRecordMapper;
 
   @Autowired
-  private UserInfoMapper userInfoMapper;
-
-  @Autowired
-  private UserBalanceService userBalanceService;
+  private PaymentTypeMapper paymentTypeMapper;
 
   /**
    * 生成商户订单号
@@ -70,23 +71,188 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
   }
 
   /**
+   * 构建模拟支付宝支付地址
+   */
+  private String buildMockAlipayPayUrl(String orderNo) {
+    return "/mock/alipay/pay?orderNo=" + orderNo;
+  }
+
+  /**
    * 构建模拟二维码地址
    */
   private String buildMockQrCode(String h5Url) {
     return QR_CODE_SERVICE + URLEncoder.encode(h5Url, StandardCharsets.UTF_8);
   }
 
-  /**
-   * 计算订单金额
-   */
-  private BigDecimal calculateAmount(LeaseAgreement agreement) {
-    BigDecimal rent = Optional.ofNullable(agreement.getRent()).orElse(BigDecimal.ZERO);
-    BigDecimal deposit = Optional.ofNullable(agreement.getDeposit()).orElse(BigDecimal.ZERO);
-    BigDecimal total = rent.add(deposit);
-    if (total.compareTo(BigDecimal.ZERO) <= 0) {
-      return BigDecimal.ONE;
+  private static boolean isSameDay(Date left, Date right) {
+    if (left == null || right == null) {
+      return false;
     }
-    return total;
+    return left.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+        .equals(right.toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
+  }
+
+  private static int parseCycleMonths(String payMonthCount) {
+    if (payMonthCount == null) {
+      return 1;
+    }
+    try {
+      int parsed = Integer.parseInt(payMonthCount);
+      return parsed <= 0 ? 1 : parsed;
+    } catch (NumberFormatException ignore) {
+      return 1;
+    }
+  }
+
+  private static class PayableSnapshot {
+    private PaymentStage stage;
+    private boolean canPay;
+    private Date payDeadline;
+    private BigDecimal depositDue = BigDecimal.ZERO;
+    private BigDecimal rentDue = BigDecimal.ZERO;
+    private BigDecimal totalDue = BigDecimal.ZERO;
+    private BigDecimal depositPaid = BigDecimal.ZERO;
+    private BigDecimal rentPaid = BigDecimal.ZERO;
+    private BigDecimal depositOffset = BigDecimal.ZERO;
+    private boolean depositHeld;
+    private Date depositPaidTime;
+    private int cycleMonths;
+  }
+
+  private PayableSnapshot calculatePayableSnapshot(LeaseAgreement agreement) {
+    PayableSnapshot snapshot = new PayableSnapshot();
+
+    BigDecimal rentPerMonth = Optional.ofNullable(agreement.getRent()).orElse(BigDecimal.ZERO);
+    BigDecimal deposit = Optional.ofNullable(agreement.getDeposit()).orElse(BigDecimal.ZERO);
+
+    PaymentType paymentType = agreement.getPaymentTypeId() == null ? null
+        : paymentTypeMapper.selectById(agreement.getPaymentTypeId());
+    snapshot.cycleMonths = parseCycleMonths(paymentType != null ? paymentType.getPayMonthCount() : null);
+    BigDecimal rentCycleDue = rentPerMonth.multiply(BigDecimal.valueOf(snapshot.cycleMonths));
+
+    List<PaymentOrder> paidOrders = paymentOrderMapper.selectList(new LambdaQueryWrapper<PaymentOrder>()
+        .eq(PaymentOrder::getLeaseAgreementId, agreement.getId())
+        .eq(PaymentOrder::getStatus, PaymentStatus.SUCCESS));
+
+    Date termStart = agreement.getLeaseStartDate();
+    List<PaymentOrder> termOrders = new ArrayList<>();
+    for (PaymentOrder po : paidOrders) {
+      if (po.getTermStartDate() != null && isSameDay(po.getTermStartDate(), termStart)) {
+        termOrders.add(po);
+      }
+    }
+    if (termOrders.isEmpty()) {
+      for (PaymentOrder po : paidOrders) {
+        if (po.getTermStartDate() == null) {
+          termOrders.add(po);
+        }
+      }
+    }
+
+    BigDecimal depositPaid = BigDecimal.ZERO;
+    BigDecimal rentPaid = BigDecimal.ZERO;
+    BigDecimal legacyPaidTotal = BigDecimal.ZERO;
+    Date earliestPaidTime = null;
+
+    for (PaymentOrder po : termOrders) {
+      if (po.getSuccessTime() != null) {
+        if (earliestPaidTime == null || po.getSuccessTime().before(earliestPaidTime)) {
+          earliestPaidTime = po.getSuccessTime();
+        }
+      }
+      BigDecimal d = po.getDepositAmount();
+      BigDecimal r = po.getRentAmount();
+      if (d == null && r == null) {
+        legacyPaidTotal = legacyPaidTotal.add(Optional.ofNullable(po.getAmountTotal()).orElse(BigDecimal.ZERO));
+      } else {
+        depositPaid = depositPaid.add(Optional.ofNullable(d).orElse(BigDecimal.ZERO));
+        rentPaid = rentPaid.add(Optional.ofNullable(r).orElse(BigDecimal.ZERO));
+      }
+    }
+
+    snapshot.depositPaidTime = earliestPaidTime;
+
+    BigDecimal depositLeft = deposit.subtract(depositPaid);
+    if (depositLeft.compareTo(BigDecimal.ZERO) < 0) {
+      depositLeft = BigDecimal.ZERO;
+    }
+    BigDecimal legacyDepositPay = legacyPaidTotal.min(depositLeft);
+    depositPaid = depositPaid.add(legacyDepositPay);
+    legacyPaidTotal = legacyPaidTotal.subtract(legacyDepositPay);
+    rentPaid = rentPaid.add(legacyPaidTotal);
+
+    snapshot.depositPaid = depositPaid;
+    snapshot.rentPaid = rentPaid;
+
+    boolean depositHeld = false;
+    for (PaymentOrder po : paidOrders) {
+      if (termOrders.contains(po)) {
+        continue;
+      }
+      if (po.getDepositAmount() != null && po.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {
+        depositHeld = true;
+        break;
+      }
+      if (po.getDepositAmount() == null && po.getRentAmount() == null
+          && Optional.ofNullable(po.getAmountTotal()).orElse(BigDecimal.ZERO).compareTo(BigDecimal.ZERO) > 0) {
+        depositHeld = true;
+        break;
+      }
+    }
+    snapshot.depositHeld = depositHeld;
+
+    BigDecimal depositDue = depositHeld ? BigDecimal.ZERO : deposit.subtract(depositPaid);
+    if (depositDue.compareTo(BigDecimal.ZERO) < 0) {
+      depositDue = BigDecimal.ZERO;
+    }
+    snapshot.depositDue = depositDue;
+
+    BigDecimal rentLeftBeforeOffset = rentCycleDue.subtract(rentPaid);
+    if (rentLeftBeforeOffset.compareTo(BigDecimal.ZERO) < 0) {
+      rentLeftBeforeOffset = BigDecimal.ZERO;
+    }
+
+    if (depositDue.compareTo(BigDecimal.ZERO) > 0) {
+      snapshot.stage = PaymentStage.DEPOSIT;
+      snapshot.canPay = true;
+      snapshot.totalDue = depositDue;
+      return snapshot;
+    }
+
+    if (rentLeftBeforeOffset.compareTo(BigDecimal.ZERO) > 0) {
+      BigDecimal depositOffset = depositPaid.min(rentLeftBeforeOffset);
+      BigDecimal rentDue = rentLeftBeforeOffset.subtract(depositOffset);
+      if (rentDue.compareTo(BigDecimal.ZERO) <= 0) {
+        snapshot.stage = PaymentStage.NONE;
+        snapshot.canPay = false;
+        snapshot.depositOffset = depositOffset;
+        snapshot.rentDue = BigDecimal.ZERO;
+        snapshot.totalDue = BigDecimal.ZERO;
+        return snapshot;
+      }
+      snapshot.depositOffset = depositOffset;
+      snapshot.rentDue = rentDue;
+      snapshot.totalDue = rentDue;
+
+      if (!depositHeld) {
+        Date deadline = snapshot.depositPaidTime == null ? null
+            : new Date(snapshot.depositPaidTime.getTime() + RENT_PAY_GRACE_MILLIS);
+        snapshot.payDeadline = deadline;
+        if (deadline != null && new Date().after(deadline)) {
+          snapshot.stage = PaymentStage.RENT_OVERDUE;
+          snapshot.canPay = false;
+          return snapshot;
+        }
+      }
+      snapshot.stage = PaymentStage.RENT;
+      snapshot.canPay = true;
+      return snapshot;
+    }
+
+    snapshot.stage = PaymentStage.NONE;
+    snapshot.canPay = false;
+    snapshot.totalDue = BigDecimal.ZERO;
+    return snapshot;
   }
 
   /**
@@ -113,20 +279,6 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
   }
 
   /**
-   * 根据手机号获取用户ID
-   */
-  private Long getUserIdByPhone(String phone) {
-    UserInfo userInfo = userInfoMapper.selectOne(
-        new LambdaQueryWrapper<UserInfo>()
-            .eq(UserInfo::getPhone, phone)
-            .last("LIMIT 1"));
-    if (userInfo == null) {
-      throw new LeaseException(ResultCodeEnum.DATA_ERROR);
-    }
-    return userInfo.getId();
-  }
-
-  /**
    * 获取支付预览信息
    *
    * @param loginUser        当前登录用户
@@ -137,30 +289,17 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
   public PaymentPreviewVo getPaymentPreview(LoginUser loginUser, Long leaseAgreementId) {
     LeaseAgreement agreement = leaseAgreementMapper.selectById(leaseAgreementId);
     checkAccess(loginUser, agreement);
-
-    Long userId = getUserIdByPhone(loginUser.getUsername());
-    UserBalanceVo balanceVo = userBalanceService.getUserBalance(userId);
-    BigDecimal totalAmount = calculateAmount(agreement);
-    BigDecimal userBalance = balanceVo.getBalance();
+    PayableSnapshot snapshot = calculatePayableSnapshot(agreement);
 
     PaymentPreviewVo previewVo = new PaymentPreviewVo();
     previewVo.setLeaseAgreementId(leaseAgreementId);
-    previewVo.setTotalAmount(totalAmount);
-    previewVo.setUserBalance(userBalance);
-    previewVo.setCanUseBalance(userBalance.compareTo(BigDecimal.ZERO) > 0);
-
-    // 计算建议支付金额
-    if (userBalance.compareTo(totalAmount) >= 0) {
-      // 余额充足，可以纯余额支付
-      previewVo.setSuggestBalanceAmount(totalAmount);
-      previewVo.setSuggestWechatAmount(BigDecimal.ZERO);
-      previewVo.setCanFullBalancePay(true);
-    } else {
-      // 余额不足，需要混合支付
-      previewVo.setSuggestBalanceAmount(userBalance);
-      previewVo.setSuggestWechatAmount(totalAmount.subtract(userBalance));
-      previewVo.setCanFullBalancePay(false);
-    }
+    previewVo.setTotalAmount(snapshot.totalDue);
+    previewVo.setDepositAmount(snapshot.depositDue);
+    previewVo.setRentAmount(snapshot.rentDue);
+    previewVo.setDepositOffset(snapshot.depositOffset);
+    previewVo.setStage(snapshot.stage);
+    previewVo.setCanPay(snapshot.canPay);
+    previewVo.setPayDeadline(snapshot.payDeadline);
 
     return previewVo;
   }
@@ -179,43 +318,45 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     LeaseAgreement agreement = leaseAgreementMapper.selectById(request.getLeaseAgreementId());
     checkAccess(loginUser, agreement);
 
-    // 检查是否已支付
-    if (agreement.getPaymentStatus() == PaymentStatus.SUCCESS) {
-      throw new LeaseException(ResultCodeEnum.REPEAT_SUBMIT);
+    if (LeaseStatus.RENEWING.equals(agreement.getStatus())) {
+      throw new LeaseException(ResultCodeEnum.ILLEGAL_REQUEST.getCode(), "续约待确认，后台确认后才能支付");
     }
 
-    // 2. 计算订单金额
-    BigDecimal totalAmount = calculateAmount(agreement);
-    BigDecimal balanceAmount = Optional.ofNullable(request.getBalanceAmount()).orElse(BigDecimal.ZERO);
+    // 2. 计算本次应付金额（按阶段）
+    PayableSnapshot snapshot = calculatePayableSnapshot(agreement);
+    if (snapshot.stage == PaymentStage.NONE) {
+      throw new LeaseException(ResultCodeEnum.REPEAT_SUBMIT);
+    }
+    if (snapshot.stage == PaymentStage.RENT_OVERDUE) {
+      throw new LeaseException(ResultCodeEnum.ILLEGAL_REQUEST.getCode(), "超过租金补缴期限，暂不支持支付");
+    }
+    if (!snapshot.canPay || snapshot.totalDue.compareTo(BigDecimal.ZERO) <= 0) {
+      throw new LeaseException(ResultCodeEnum.ILLEGAL_REQUEST);
+    }
+
+    BigDecimal totalAmount = snapshot.totalDue;
+    BigDecimal alipayAmount = Optional.ofNullable(request.getAlipayAmount()).orElse(BigDecimal.ZERO);
     BigDecimal wechatAmount = Optional.ofNullable(request.getWechatAmount()).orElse(BigDecimal.ZERO);
 
     // 3. 校验支付金额
-    validatePaymentAmount(request, totalAmount, balanceAmount, wechatAmount, loginUser);
+    validatePaymentAmount(request, totalAmount, alipayAmount, wechatAmount);
 
     // 4. 确定支付方式组合
-    PayMethodCombination payMethodCombination = determinePayMethodCombination(request, balanceAmount, wechatAmount);
+    PayMethodCombination payMethodCombination = determinePayMethodCombination(request, alipayAmount, wechatAmount);
 
     // 5. 创建支付订单
+    BigDecimal depositAmount = PaymentStage.DEPOSIT.equals(snapshot.stage) ? totalAmount : BigDecimal.ZERO;
+    BigDecimal rentAmount = PaymentStage.RENT.equals(snapshot.stage) ? totalAmount : BigDecimal.ZERO;
+    Integer bizType = PaymentStage.DEPOSIT.equals(snapshot.stage) ? 1 : 2;
+
     PaymentOrder paymentOrder = createPaymentOrder(agreement, request, totalAmount,
-        balanceAmount, wechatAmount, payMethodCombination);
+        depositAmount, rentAmount, bizType,
+        alipayAmount, wechatAmount, payMethodCombination);
 
-    // 6. 处理余额支付
-    Long userId = getUserIdByPhone(loginUser.getUsername());
-    boolean balancePaid = false;
-    if (Boolean.TRUE.equals(request.getUseBalance()) && balanceAmount.compareTo(BigDecimal.ZERO) > 0) {
-      balancePaid = processBalancePayment(userId, paymentOrder, balanceAmount);
-    }
-
-    // 7. 构建响应
-    UnifiedPayResponse response = buildPayResponse(paymentOrder, balancePaid,
+    // 6. 构建响应（支付宝/微信均为待支付，需用户模拟确认）
+    UnifiedPayResponse response = buildPayResponse(paymentOrder,
+        request.getUseAlipay(), alipayAmount,
         request.getUseWechat(), wechatAmount);
-
-    // 8. 如果是纯余额支付且已成功，直接完成订单
-    if (payMethodCombination == PayMethodCombination.BALANCE_ONLY && balancePaid) {
-      completePaymentOrder(paymentOrder, agreement);
-      response.setStatus(PaymentStatus.SUCCESS);
-      response.setMessage("余额支付成功");
-    }
 
     return response;
   }
@@ -224,26 +365,26 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
    * 校验支付金额
    */
   private void validatePaymentAmount(UnifiedPayRequest request, BigDecimal totalAmount,
-      BigDecimal balanceAmount, BigDecimal wechatAmount,
-      LoginUser loginUser) {
+      BigDecimal alipayAmount, BigDecimal wechatAmount) {
+    if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+      throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
+    }
     // 至少选择一种支付方式
-    if (!Boolean.TRUE.equals(request.getUseBalance()) && !Boolean.TRUE.equals(request.getUseWechat())) {
+    if (!Boolean.TRUE.equals(request.getUseAlipay()) && !Boolean.TRUE.equals(request.getUseWechat())) {
+      throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
+    }
+
+    if (Boolean.TRUE.equals(request.getUseAlipay()) && alipayAmount.compareTo(BigDecimal.ZERO) <= 0) {
+      throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
+    }
+    if (Boolean.TRUE.equals(request.getUseWechat()) && wechatAmount.compareTo(BigDecimal.ZERO) <= 0) {
       throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
     }
 
     // 支付金额之和必须等于订单金额
-    BigDecimal payTotal = balanceAmount.add(wechatAmount);
+    BigDecimal payTotal = alipayAmount.add(wechatAmount);
     if (payTotal.compareTo(totalAmount) != 0) {
       throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
-    }
-
-    // 如果使用余额，检查余额是否充足
-    if (Boolean.TRUE.equals(request.getUseBalance()) && balanceAmount.compareTo(BigDecimal.ZERO) > 0) {
-      Long userId = getUserIdByPhone(loginUser.getUsername());
-      UserBalanceVo balanceVo = userBalanceService.getUserBalance(userId);
-      if (balanceVo.getBalance().compareTo(balanceAmount) < 0) {
-        throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
-      }
     }
   }
 
@@ -251,15 +392,15 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
    * 确定支付方式组合
    */
   private PayMethodCombination determinePayMethodCombination(UnifiedPayRequest request,
-      BigDecimal balanceAmount,
+      BigDecimal alipayAmount,
       BigDecimal wechatAmount) {
-    boolean useBalance = Boolean.TRUE.equals(request.getUseBalance()) && balanceAmount.compareTo(BigDecimal.ZERO) > 0;
+    boolean useAlipay = Boolean.TRUE.equals(request.getUseAlipay()) && alipayAmount.compareTo(BigDecimal.ZERO) > 0;
     boolean useWechat = Boolean.TRUE.equals(request.getUseWechat()) && wechatAmount.compareTo(BigDecimal.ZERO) > 0;
 
-    if (useBalance && useWechat) {
+    if (useAlipay && useWechat) {
       return PayMethodCombination.MIXED;
-    } else if (useBalance) {
-      return PayMethodCombination.BALANCE_ONLY;
+    } else if (useAlipay) {
+      return PayMethodCombination.ALIPAY_ONLY;
     } else if (useWechat) {
       return PayMethodCombination.WECHAT_ONLY;
     } else {
@@ -271,26 +412,39 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
    * 创建支付订单
    */
   private PaymentOrder createPaymentOrder(LeaseAgreement agreement, UnifiedPayRequest request,
-      BigDecimal totalAmount, BigDecimal balanceAmount,
-      BigDecimal wechatAmount, PayMethodCombination payMethodCombination) {
+      BigDecimal totalAmount,
+      BigDecimal depositAmount,
+      BigDecimal rentAmount,
+      Integer bizType,
+      BigDecimal alipayAmount,
+      BigDecimal wechatAmount,
+      PayMethodCombination payMethodCombination) {
     PaymentOrder paymentOrder = new PaymentOrder();
     paymentOrder.setOrderNo(generateOrderNo("PAY"));
     paymentOrder.setLeaseAgreementId(agreement.getId());
+    paymentOrder.setTermStartDate(agreement.getLeaseStartDate());
     paymentOrder.setSubject(buildSubject(agreement, request.getScene()));
     paymentOrder.setAmountTotal(totalAmount);
     paymentOrder.setStatus(PaymentStatus.WAITING);
     paymentOrder.setPayChannel("UNIFIED");
     paymentOrder.setPayMethod(payMethodCombination);
-    paymentOrder.setBalanceAmount(balanceAmount);
+    paymentOrder.setBizType(bizType);
+    paymentOrder.setDepositAmount(depositAmount);
+    paymentOrder.setRentAmount(rentAmount);
+    paymentOrder.setBalanceAmount(alipayAmount);
     paymentOrder.setWechatAmount(wechatAmount);
     paymentOrder.setRefundStatus(0);
     paymentOrder.setRefundedAmount(BigDecimal.ZERO);
 
-    // 如果需要微信支付，生成支付链接
+    String mainH5Url = null;
     if (wechatAmount.compareTo(BigDecimal.ZERO) > 0) {
-      String h5Url = buildMockWechatPayUrl(paymentOrder.getOrderNo());
-      paymentOrder.setH5Url(h5Url);
-      paymentOrder.setCodeUrl(buildMockQrCode(h5Url));
+      mainH5Url = buildMockWechatPayUrl(paymentOrder.getOrderNo());
+    } else if (alipayAmount.compareTo(BigDecimal.ZERO) > 0) {
+      mainH5Url = buildMockAlipayPayUrl(paymentOrder.getOrderNo());
+    }
+    if (mainH5Url != null) {
+      paymentOrder.setH5Url(mainH5Url);
+      paymentOrder.setCodeUrl(buildMockQrCode(mainH5Url));
     }
 
     paymentOrderMapper.insert(paymentOrder);
@@ -306,64 +460,45 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
   }
 
   /**
-   * 处理余额支付
-   */
-  private boolean processBalancePayment(Long userId, PaymentOrder paymentOrder, BigDecimal balanceAmount) {
-    try {
-      // 扣减余额
-      String transactionNo = userBalanceService.deductBalance(
-          userId, balanceAmount, paymentOrder.getOrderNo(), "租约支付-余额扣款");
-
-      // 创建余额支付明细
-      PaymentDetail balanceDetail = new PaymentDetail();
-      balanceDetail.setPaymentOrderId(paymentOrder.getId());
-      balanceDetail.setPayMethod(PayMethod.BALANCE);
-      balanceDetail.setAmount(balanceAmount);
-      balanceDetail.setStatus(PaymentStatus.SUCCESS);
-      balanceDetail.setTransactionNo(transactionNo);
-      balanceDetail.setPayTime(new Date());
-      balanceDetail.setRefundAmount(BigDecimal.ZERO);
-      paymentDetailMapper.insert(balanceDetail);
-
-      return true;
-    } catch (Exception e) {
-      // 余额扣款失败
-      return false;
-    }
-  }
-
-  /**
    * 构建支付响应
    */
-  private UnifiedPayResponse buildPayResponse(PaymentOrder paymentOrder, boolean balancePaid,
+  private UnifiedPayResponse buildPayResponse(PaymentOrder paymentOrder,
+      Boolean useAlipay, BigDecimal alipayAmount,
       Boolean useWechat, BigDecimal wechatAmount) {
     UnifiedPayResponse response = new UnifiedPayResponse();
     response.setPaymentOrderId(paymentOrder.getId());
     response.setOrderNo(paymentOrder.getOrderNo());
     response.setAmountTotal(paymentOrder.getAmountTotal());
-    response.setBalanceAmount(paymentOrder.getBalanceAmount());
+    response.setAlipayAmount(paymentOrder.getBalanceAmount());
     response.setWechatAmount(paymentOrder.getWechatAmount());
     response.setPayMethod(paymentOrder.getPayMethod());
     response.setStatus(paymentOrder.getStatus());
-    response.setBalancePaid(balancePaid);
+    response.setAlipayPaid(false);
 
-    // 判断是否需要微信支付
+    boolean needAlipayPay = Boolean.TRUE.equals(useAlipay) && alipayAmount.compareTo(BigDecimal.ZERO) > 0;
     boolean needWechatPay = Boolean.TRUE.equals(useWechat) && wechatAmount.compareTo(BigDecimal.ZERO) > 0;
+    response.setNeedAlipayPay(needAlipayPay);
     response.setNeedWechatPay(needWechatPay);
 
-    if (needWechatPay) {
-      response.setWechatH5Url(paymentOrder.getH5Url());
-      response.setWechatCodeUrl(paymentOrder.getCodeUrl());
+    if (needAlipayPay) {
+      String alipayH5Url = buildMockAlipayPayUrl(paymentOrder.getOrderNo());
+      response.setAlipayH5Url(alipayH5Url);
+      response.setAlipayCodeUrl(buildMockQrCode(alipayH5Url));
 
-      if (balancePaid) {
-        response.setMessage("余额已扣款成功，请继续完成微信支付");
-      } else {
-        response.setMessage("请完成微信支付");
-      }
+      PaymentDetail alipayDetail = new PaymentDetail();
+      alipayDetail.setPaymentOrderId(paymentOrder.getId());
+      alipayDetail.setPayMethod(PayMethod.ALIPAY);
+      alipayDetail.setAmount(alipayAmount);
+      alipayDetail.setStatus(PaymentStatus.WAITING);
+      alipayDetail.setRefundAmount(BigDecimal.ZERO);
+      paymentDetailMapper.insert(alipayDetail);
     }
 
-    // 如果需要微信支付，创建微信支付明细（待支付状态）
     if (needWechatPay) {
+      String wechatH5Url = buildMockWechatPayUrl(paymentOrder.getOrderNo());
+      response.setWechatH5Url(wechatH5Url);
+      response.setWechatCodeUrl(buildMockQrCode(wechatH5Url));
+
       PaymentDetail wechatDetail = new PaymentDetail();
       wechatDetail.setPaymentOrderId(paymentOrder.getId());
       wechatDetail.setPayMethod(PayMethod.WECHAT);
@@ -373,24 +508,57 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
       paymentDetailMapper.insert(wechatDetail);
     }
 
+    if (needAlipayPay && needWechatPay) {
+      response.setMessage("请分别完成支付宝和微信支付");
+    } else if (needAlipayPay) {
+      response.setMessage("请完成支付宝支付");
+    } else if (needWechatPay) {
+      response.setMessage("请完成微信支付");
+    }
+
     return response;
   }
 
   /**
-   * 完成支付订单（纯余额支付成功时调用）
+   * 完成支付订单
    */
-  private void completePaymentOrder(PaymentOrder paymentOrder, LeaseAgreement agreement) {
-    // 更新支付订单状态
+  private void completePaymentOrder(PaymentOrder paymentOrder) {
     paymentOrder.setStatus(PaymentStatus.SUCCESS);
     paymentOrder.setSuccessTime(new Date());
     paymentOrderMapper.updateById(paymentOrder);
+    refreshAgreementPaymentStatus(paymentOrder.getLeaseAgreementId());
+  }
 
-    // 更新租约状态
+  private void refreshAgreementPaymentStatus(Long leaseAgreementId) {
+    LeaseAgreement agreement = leaseAgreementMapper.selectById(leaseAgreementId);
+    if (agreement == null) {
+      throw new LeaseException(ResultCodeEnum.DATA_ERROR);
+    }
+    PayableSnapshot snapshot = calculatePayableSnapshot(agreement);
+
     LambdaUpdateWrapper<LeaseAgreement> updateWrapper = new LambdaUpdateWrapper<>();
-    updateWrapper.eq(LeaseAgreement::getId, agreement.getId())
-        .set(LeaseAgreement::getPaymentStatus, PaymentStatus.SUCCESS)
-        .set(LeaseAgreement::getStatus, LeaseStatus.SIGNED);
+    updateWrapper.eq(LeaseAgreement::getId, leaseAgreementId);
+
+    if (snapshot.depositDue.compareTo(BigDecimal.ZERO) <= 0) {
+      updateWrapper.set(LeaseAgreement::getStatus, LeaseStatus.SIGNED);
+    }
+    if (snapshot.stage == PaymentStage.NONE) {
+      updateWrapper.set(LeaseAgreement::getPaymentStatus, PaymentStatus.SUCCESS);
+    } else {
+      updateWrapper.set(LeaseAgreement::getPaymentStatus, PaymentStatus.WAITING);
+    }
     leaseAgreementMapper.update(null, updateWrapper);
+  }
+
+  /**
+   * 支付宝支付回调处理
+   *
+   * @param orderNo 商户订单号
+   */
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public void handleAlipayPayCallback(String orderNo) {
+    handleThirdPartyPayCallback(orderNo, PayMethod.ALIPAY);
   }
 
   /**
@@ -401,6 +569,10 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
   @Override
   @Transactional(rollbackFor = Exception.class)
   public void handleWechatPayCallback(String orderNo) {
+    handleThirdPartyPayCallback(orderNo, PayMethod.WECHAT);
+  }
+
+  private void handleThirdPartyPayCallback(String orderNo, PayMethod payMethod) {
     PaymentOrder paymentOrder = paymentOrderMapper.selectOne(
         new LambdaQueryWrapper<PaymentOrder>()
             .eq(PaymentOrder::getOrderNo, orderNo));
@@ -413,26 +585,24 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
       return;
     }
 
-    // 更新微信支付明细状态
+    String transactionPrefix = PayMethod.ALIPAY.equals(payMethod) ? "ALI" : "WX";
     LambdaUpdateWrapper<PaymentDetail> detailUpdateWrapper = new LambdaUpdateWrapper<>();
     detailUpdateWrapper.eq(PaymentDetail::getPaymentOrderId, paymentOrder.getId())
-        .eq(PaymentDetail::getPayMethod, PayMethod.WECHAT)
+        .eq(PaymentDetail::getPayMethod, payMethod)
+        .eq(PaymentDetail::getStatus, PaymentStatus.WAITING)
         .set(PaymentDetail::getStatus, PaymentStatus.SUCCESS)
         .set(PaymentDetail::getPayTime, new Date())
-        .set(PaymentDetail::getTransactionNo, generateOrderNo("WX"));
+        .set(PaymentDetail::getTransactionNo, generateOrderNo(transactionPrefix));
     paymentDetailMapper.update(null, detailUpdateWrapper);
 
-    // 更新支付订单状态
-    paymentOrder.setStatus(PaymentStatus.SUCCESS);
-    paymentOrder.setSuccessTime(new Date());
-    paymentOrderMapper.updateById(paymentOrder);
+    Long waitingCount = paymentDetailMapper.selectCount(new LambdaQueryWrapper<PaymentDetail>()
+        .eq(PaymentDetail::getPaymentOrderId, paymentOrder.getId())
+        .eq(PaymentDetail::getStatus, PaymentStatus.WAITING));
+    if (waitingCount != null && waitingCount > 0) {
+      return;
+    }
 
-    // 更新租约状态
-    LambdaUpdateWrapper<LeaseAgreement> agreementUpdateWrapper = new LambdaUpdateWrapper<>();
-    agreementUpdateWrapper.eq(LeaseAgreement::getId, paymentOrder.getLeaseAgreementId())
-        .set(LeaseAgreement::getPaymentStatus, PaymentStatus.SUCCESS)
-        .set(LeaseAgreement::getStatus, LeaseStatus.SIGNED);
-    leaseAgreementMapper.update(null, agreementUpdateWrapper);
+    completePaymentOrder(paymentOrder);
   }
 
   /**
@@ -449,8 +619,10 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     LeaseAgreement agreement = leaseAgreementMapper.selectById(request.getLeaseAgreementId());
     checkAccess(loginUser, agreement);
 
-    // 检查是否已支付
-    if (agreement.getPaymentStatus() != PaymentStatus.SUCCESS) {
+    Long paidCount = paymentOrderMapper.selectCount(new LambdaQueryWrapper<PaymentOrder>()
+        .eq(PaymentOrder::getLeaseAgreementId, agreement.getId())
+        .eq(PaymentOrder::getStatus, PaymentStatus.SUCCESS));
+    if (paidCount == null || paidCount <= 0) {
       throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
     }
 
@@ -469,22 +641,22 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     java.util.List<PaymentDetail> paymentDetails = paymentDetailMapper.selectByPaymentOrderId(paymentOrder.getId());
 
     // 4. 计算退款金额
-    BigDecimal balanceRefund = BigDecimal.ZERO;
+    BigDecimal alipayRefund = BigDecimal.ZERO;
     BigDecimal wechatRefund = BigDecimal.ZERO;
 
     for (PaymentDetail detail : paymentDetails) {
       if (detail.getStatus() == PaymentStatus.SUCCESS) {
         BigDecimal refundableAmount = detail.getAmount().subtract(
             Optional.ofNullable(detail.getRefundAmount()).orElse(BigDecimal.ZERO));
-        if (detail.getPayMethod() == PayMethod.BALANCE) {
-          balanceRefund = balanceRefund.add(refundableAmount);
+        if (detail.getPayMethod() == PayMethod.ALIPAY) {
+          alipayRefund = alipayRefund.add(refundableAmount);
         } else if (detail.getPayMethod() == PayMethod.WECHAT) {
           wechatRefund = wechatRefund.add(refundableAmount);
         }
       }
     }
 
-    BigDecimal totalRefund = balanceRefund.add(wechatRefund);
+    BigDecimal totalRefund = alipayRefund.add(wechatRefund);
     if (totalRefund.compareTo(BigDecimal.ZERO) <= 0) {
       throw new LeaseException(ResultCodeEnum.PARAM_ERROR);
     }
@@ -495,20 +667,16 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     refundRecord.setPaymentOrderId(paymentOrder.getId());
     refundRecord.setLeaseAgreementId(agreement.getId());
     refundRecord.setRefundAmount(totalRefund);
-    refundRecord.setBalanceRefund(balanceRefund);
+    refundRecord.setBalanceRefund(alipayRefund);
     refundRecord.setWechatRefund(wechatRefund);
     refundRecord.setStatus(RefundStatus.PROCESSING);
     refundRecord.setReason(request.getReason());
     refundRecordMapper.insert(refundRecord);
 
-    // 6. 处理余额退款
-    Long userId = getUserIdByPhone(loginUser.getUsername());
-    if (balanceRefund.compareTo(BigDecimal.ZERO) > 0) {
-      userBalanceService.addBalance(userId, balanceRefund, paymentOrder.getOrderNo(), "订单退款-余额返还");
-
-      // 更新余额支付明细
+    // 6. 处理支付宝退款（模拟）
+    if (alipayRefund.compareTo(BigDecimal.ZERO) > 0) {
       for (PaymentDetail detail : paymentDetails) {
-        if (detail.getPayMethod() == PayMethod.BALANCE && detail.getStatus() == PaymentStatus.SUCCESS) {
+        if (detail.getPayMethod() == PayMethod.ALIPAY && detail.getStatus() == PaymentStatus.SUCCESS) {
           detail.setRefundAmount(detail.getAmount());
           detail.setRefundTime(new Date());
           detail.setStatus(PaymentStatus.REFUNDED);
@@ -554,11 +722,11 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     response.setRefundNo(refundRecord.getRefundNo());
     response.setOriginalOrderNo(paymentOrder.getOrderNo());
     response.setRefundAmount(totalRefund);
-    response.setBalanceRefund(balanceRefund);
+    response.setAlipayRefund(alipayRefund);
     response.setWechatRefund(wechatRefund);
     response.setStatus(RefundStatus.SUCCESS);
     response.setRefundTime(refundRecord.getSuccessTime());
-    response.setMessage("退款成功，余额退款" + balanceRefund + "元，微信退款" + wechatRefund + "元");
+    response.setMessage("退款成功，支付宝退款" + alipayRefund + "元，微信退款" + wechatRefund + "元");
 
     return response;
   }
@@ -589,7 +757,7 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     response.setRefundNo(refundRecord.getRefundNo());
     response.setOriginalOrderNo(paymentOrder != null ? paymentOrder.getOrderNo() : null);
     response.setRefundAmount(refundRecord.getRefundAmount());
-    response.setBalanceRefund(refundRecord.getBalanceRefund());
+    response.setAlipayRefund(refundRecord.getBalanceRefund());
     response.setWechatRefund(refundRecord.getWechatRefund());
     response.setStatus(refundRecord.getStatus());
     response.setRefundTime(refundRecord.getSuccessTime());

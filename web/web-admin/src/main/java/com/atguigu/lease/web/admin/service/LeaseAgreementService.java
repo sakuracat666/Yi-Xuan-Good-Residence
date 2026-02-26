@@ -1,6 +1,7 @@
 package com.atguigu.lease.web.admin.service;
 
 import com.atguigu.lease.model.entity.LeaseAgreement;
+import com.atguigu.lease.model.enums.LeaseStatus;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementQueryVo;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementVo;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -27,4 +28,11 @@ public interface LeaseAgreementService extends IService<LeaseAgreement> {
      * @return AgreementVo
      */
     AgreementVo getAgreementById(Long id);
+
+    /**
+     * 根据id更新租约状态
+     * @param id 租约id
+     * @param status 目标状态
+     */
+    void updateStatusById(Long id, LeaseStatus status);
 }

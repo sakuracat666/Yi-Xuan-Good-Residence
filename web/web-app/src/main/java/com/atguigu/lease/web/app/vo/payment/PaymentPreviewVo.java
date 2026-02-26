@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.Date;
 
 /**
  * 支付预览信息VO
@@ -16,21 +17,24 @@ public class PaymentPreviewVo {
   @Schema(description = "租约ID")
   private Long leaseAgreementId;
 
-  @Schema(description = "订单总金额（元）")
+  @Schema(description = "本次应付总金额（元）")
   private BigDecimal totalAmount;
 
-  @Schema(description = "用户当前可用余额（元）")
-  private BigDecimal userBalance;
+  @Schema(description = "本次应付押金金额（元）")
+  private BigDecimal depositAmount;
 
-  @Schema(description = "是否可以使用余额支付")
-  private Boolean canUseBalance;
+  @Schema(description = "本次应付租金金额（元）")
+  private BigDecimal rentAmount;
 
-  @Schema(description = "建议余额支付金额（元）- 取余额和订单金额的较小值")
-  private BigDecimal suggestBalanceAmount;
+  @Schema(description = "本次租金已抵扣押金金额（元）")
+  private BigDecimal depositOffset;
 
-  @Schema(description = "建议微信支付金额（元）- 订单金额减去建议余额支付金额")
-  private BigDecimal suggestWechatAmount;
+  @Schema(description = "当前支付阶段")
+  private PaymentStage stage;
 
-  @Schema(description = "是否可以纯余额支付（余额>=订单金额）")
-  private Boolean canFullBalancePay;
+  @Schema(description = "是否允许发起支付")
+  private Boolean canPay;
+
+  @Schema(description = "支付截止时间（仅租金补缴阶段可能返回）")
+  private Date payDeadline;
 }

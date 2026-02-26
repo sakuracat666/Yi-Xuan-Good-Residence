@@ -3,6 +3,7 @@ package com.atguigu.lease.web.app.service.impl;
 import com.atguigu.lease.common.exception.LeaseException;
 import com.atguigu.lease.common.result.ResultCodeEnum;
 import com.atguigu.lease.model.entity.*;
+import com.atguigu.lease.model.enums.LeaseStatus;
 import com.atguigu.lease.model.enums.RepairPriority;
 import com.atguigu.lease.model.enums.RepairStatus;
 import com.atguigu.lease.web.app.mapper.*;
@@ -36,6 +37,8 @@ public class RepairServiceImpl extends ServiceImpl<RepairRequestMapper, RepairRe
     private RoomInfoMapper roomInfoMapper;
     @Autowired
     private ApartmentInfoMapper apartmentInfoMapper;
+    @Autowired
+    private LeaseAgreementMapper leaseAgreementMapper;
 
     /**
      * 提交报修
@@ -57,8 +60,11 @@ public class RepairServiceImpl extends ServiceImpl<RepairRequestMapper, RepairRe
         repairRequest.setDescription(submitVo.getDescription());
         repairRequest.setPriority(submitVo.getPriority() != null ? submitVo.getPriority() : RepairPriority.MEDIUM);
         repairRequest.setStatus(RepairStatus.PENDING);
-        repairRequest.setAppointmentTime(submitVo.getAppointmentTime() != null ? java.sql.Timestamp.valueOf(submitVo.getAppointmentTime()) : null);
-        repairRequest.setContactPhone(StringUtils.hasText(submitVo.getContactPhone()) ? submitVo.getContactPhone() : null);
+        repairRequest.setAppointmentTime(
+                submitVo.getAppointmentTime() != null ? java.sql.Timestamp.valueOf(submitVo.getAppointmentTime())
+                        : null);
+        repairRequest
+                .setContactPhone(StringUtils.hasText(submitVo.getContactPhone()) ? submitVo.getContactPhone() : null);
         this.save(repairRequest);
 
         saveAttachments(repairRequest.getId(), submitVo.getAttachmentUrls());
@@ -127,51 +133,40 @@ public class RepairServiceImpl extends ServiceImpl<RepairRequestMapper, RepairRe
      * @return 房间列表
      */
     @Override
-    public List<RepairRoomNumberApartIdVo> getAllRooms() {
-        List<RoomInfo> roomInfos = roomInfoMapper.selectList(new LambdaQueryWrapper<RoomInfo>().eq(RoomInfo::getIsDeleted, 0));
-
-        if (roomInfos == null || roomInfos.isEmpty()) {
+    public List<RepairRoomNumberApartIdVo> getAllRooms(String phone) {
+        if (!StringUtils.hasText(phone)) {
             return new ArrayList<>();
         }
 
-        // 提取所有公寓ID
-        Set<Long> apartmentIds = roomInfos.stream()
-                .map(RoomInfo::getApartmentId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        // 批量查询公寓信息
-        Map<Long, ApartmentInfo> apartmentInfoMap = new HashMap<>();
-        if (!apartmentIds.isEmpty()) {
-            List<ApartmentInfo> apartmentInfos = apartmentInfoMapper.selectBatchIds(apartmentIds);
-            if (apartmentInfos != null) {
-                apartmentInfoMap = apartmentInfos.stream()
-                        .collect(Collectors.toMap(ApartmentInfo::getId, Function.identity()));
-            }
+        LambdaQueryWrapper<LeaseAgreement> agreementWrapper = new LambdaQueryWrapper<>();
+        agreementWrapper.eq(LeaseAgreement::getPhone, phone)
+                .in(LeaseAgreement::getStatus, LeaseStatus.SIGNED, LeaseStatus.WITHDRAWING, LeaseStatus.RENEWING)
+                .orderByDesc(LeaseAgreement::getCreateTime)
+                .last("limit 1");
+        LeaseAgreement agreement = leaseAgreementMapper.selectOne(agreementWrapper);
+        if (agreement == null || agreement.getRoomId() == null) {
+            return new ArrayList<>();
         }
 
-        List<RepairRoomNumberApartIdVo> roomItemVos = new ArrayList<>();
-        for (RoomInfo roomInfo : roomInfos) {
-            String roomNumber = roomInfo.getRoomNumber();
-            Long apartmentId = roomInfo.getApartmentId();
+        RoomInfo roomInfo = roomInfoMapper.selectById(agreement.getRoomId());
+        if (roomInfo == null) {
+            return new ArrayList<>();
+        }
 
-            String name = "";
-            ApartmentInfo apartmentInfo = apartmentInfoMap.get(apartmentId);
+        String apartmentName = "";
+        if (roomInfo.getApartmentId() != null) {
+            ApartmentInfo apartmentInfo = apartmentInfoMapper.selectById(roomInfo.getApartmentId());
             if (apartmentInfo != null) {
-                name = apartmentInfo.getName();
+                apartmentName = apartmentInfo.getName();
             }
-
-            RepairRoomNumberApartIdVo roomItemVo = new RepairRoomNumberApartIdVo();
-            roomItemVo.setRoomNumber(roomNumber);
-            roomItemVo.setApartmentName(name);
-            roomItemVo.setRoomId(roomInfo.getId());
-
-            roomItemVos.add(roomItemVo);
         }
-        return roomItemVos;
+
+        RepairRoomNumberApartIdVo vo = new RepairRoomNumberApartIdVo();
+        vo.setRoomId(roomInfo.getId());
+        vo.setRoomNumber(roomInfo.getRoomNumber());
+        vo.setApartmentName(apartmentName);
+        return Collections.singletonList(vo);
     }
-
-
 
     /**
      * 保存附件列表

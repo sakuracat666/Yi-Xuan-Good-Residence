@@ -2,6 +2,7 @@ package com.atguigu.lease.web.app.vo.agreement;
 
 import com.atguigu.lease.model.enums.LeaseSourceType;
 import com.atguigu.lease.model.enums.LeaseStatus;
+import com.atguigu.lease.model.enums.PaymentStatus;
 import com.atguigu.lease.web.app.vo.graph.GraphVo;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -43,5 +44,8 @@ public class AgreementItemVo {
 
     @Schema(description = "租金")
     private BigDecimal rent;
+
+    @Schema(description = "支付状态")
+    private PaymentStatus paymentStatus;
     
 }

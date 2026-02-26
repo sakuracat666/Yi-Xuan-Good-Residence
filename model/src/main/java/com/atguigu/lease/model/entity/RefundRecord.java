@@ -36,7 +36,7 @@ public class RefundRecord extends BaseEntity {
   @TableField("refund_amount")
   private BigDecimal refundAmount;
 
-  @Schema(description = "余额退款金额")
+  @Schema(description = "支付宝退款金额")
   @TableField("balance_refund")
   private BigDecimal balanceRefund;
 

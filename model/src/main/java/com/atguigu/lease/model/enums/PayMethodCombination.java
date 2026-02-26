@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum PayMethodCombination implements BaseEnum {
 
   NOT_SELECTED(0, "未选择"),
-  BALANCE_ONLY(1, "纯余额支付"),
+  ALIPAY_ONLY(1, "纯支付宝支付"),
   WECHAT_ONLY(2, "纯微信支付"),
   MIXED(3, "混合支付");
 

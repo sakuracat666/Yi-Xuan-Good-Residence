@@ -56,9 +56,10 @@ public class RepairController {
      */
     @Operation(summary = "分页查询报修列表")
     @GetMapping("/page")
-    public Result<IPage<RepairItemVo>> pageRepairs(@RequestParam(defaultValue = "1") @Min(value = 1, message = "页码必须大于等于1") Long current,
-                                                   @RequestParam(defaultValue = "10") @Min(value = 1, message = "分页大小必须大于等于1") Long size,
-                                                   @RequestParam(required = false) RepairStatus status) {
+    public Result<IPage<RepairItemVo>> pageRepairs(
+            @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码必须大于等于1") Long current,
+            @RequestParam(defaultValue = "10") @Min(value = 1, message = "分页大小必须大于等于1") Long size,
+            @RequestParam(required = false) RepairStatus status) {
         Long userId = LoginUserHolder.getLoginUser().getUserId();
         Page<RepairItemVo> page = new Page<>(current, size);
         IPage<RepairItemVo> pageResult = repairService.pageUserRepairs(page, userId, status);
@@ -93,7 +94,8 @@ public class RepairController {
     @Operation(summary = "获取所有的房间信息")
     @GetMapping("/rooms")
     public Result<List<RepairRoomNumberApartIdVo>> getAllRooms() {
-        List<RepairRoomNumberApartIdVo> rooms = repairService.getAllRooms();
+        String phone = LoginUserHolder.getLoginUser().getUsername();
+        List<RepairRoomNumberApartIdVo> rooms = repairService.getAllRooms(phone);
         return Result.ok(rooms);
     }
 }

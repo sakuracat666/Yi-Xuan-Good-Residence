@@ -112,6 +112,9 @@ public class PaymentServiceImpl implements PaymentService {
         if (agreement.getPaymentStatus() == PaymentStatus.SUCCESS) {
             throw new LeaseException(ResultCodeEnum.REPEAT_SUBMIT);
         }
+        if (LeaseStatus.RENEWING.equals(agreement.getStatus())) {
+            throw new LeaseException(ResultCodeEnum.ILLEGAL_REQUEST.getCode(), "续约待确认，后台确认后才能支付");
+        }
 
         PaymentOrder paymentOrder = new PaymentOrder();
         paymentOrder.setOrderNo(generateOrderNo());

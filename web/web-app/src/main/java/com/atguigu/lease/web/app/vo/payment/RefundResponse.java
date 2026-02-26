@@ -23,8 +23,8 @@ public class RefundResponse {
   @Schema(description = "退款总金额（元）")
   private BigDecimal refundAmount;
 
-  @Schema(description = "余额退款金额（元）")
-  private BigDecimal balanceRefund;
+  @Schema(description = "支付宝退款金额（元）")
+  private BigDecimal alipayRefund;
 
   @Schema(description = "微信退款金额（元）")
   private BigDecimal wechatRefund;
