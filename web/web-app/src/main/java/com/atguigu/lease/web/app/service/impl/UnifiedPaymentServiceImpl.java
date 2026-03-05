@@ -6,7 +6,10 @@ import com.atguigu.lease.common.result.ResultCodeEnum;
 import com.atguigu.lease.model.entity.*;
 import com.atguigu.lease.model.enums.*;
 import com.atguigu.lease.web.app.mapper.*;
+import com.atguigu.lease.web.app.service.RentBillService;
 import com.atguigu.lease.web.app.service.UnifiedPaymentService;
+import com.atguigu.lease.web.app.vo.bill.BillItemVo;
+import com.atguigu.lease.web.app.vo.bill.CurrentBillVo;
 import com.atguigu.lease.web.app.vo.payment.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -19,11 +22,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Date;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
@@ -37,7 +36,6 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
 
   private static final DateTimeFormatter ORDER_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
   private static final String QR_CODE_SERVICE = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=";
-  private static final long RENT_PAY_GRACE_MILLIS = 30L * 24 * 60 * 60 * 1000;
 
   @Autowired
   private PaymentOrderMapper paymentOrderMapper;
@@ -53,6 +51,12 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
 
   @Autowired
   private PaymentTypeMapper paymentTypeMapper;
+
+  @Autowired
+  private RentBillMapper rentBillMapper;
+
+  @Autowired
+  private RentBillService rentBillService;
 
   /**
    * 生成商户订单号
@@ -84,184 +88,13 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     return QR_CODE_SERVICE + URLEncoder.encode(h5Url, StandardCharsets.UTF_8);
   }
 
-  private static boolean isSameDay(Date left, Date right) {
-    if (left == null || right == null) {
-      return false;
-    }
-    return left.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
-        .equals(right.toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
-  }
-
-  private static int parseCycleMonths(String payMonthCount) {
-    if (payMonthCount == null) {
-      return 1;
-    }
-    try {
-      int parsed = Integer.parseInt(payMonthCount);
-      return parsed <= 0 ? 1 : parsed;
-    } catch (NumberFormatException ignore) {
-      return 1;
-    }
-  }
-
-  private static class PayableSnapshot {
-    private PaymentStage stage;
-    private boolean canPay;
-    private Date payDeadline;
-    private BigDecimal depositDue = BigDecimal.ZERO;
-    private BigDecimal rentDue = BigDecimal.ZERO;
-    private BigDecimal totalDue = BigDecimal.ZERO;
-    private BigDecimal depositPaid = BigDecimal.ZERO;
-    private BigDecimal rentPaid = BigDecimal.ZERO;
-    private BigDecimal depositOffset = BigDecimal.ZERO;
-    private boolean depositHeld;
-    private Date depositPaidTime;
-    private int cycleMonths;
-  }
-
-  private PayableSnapshot calculatePayableSnapshot(LeaseAgreement agreement) {
-    PayableSnapshot snapshot = new PayableSnapshot();
-
-    BigDecimal rentPerMonth = Optional.ofNullable(agreement.getRent()).orElse(BigDecimal.ZERO);
-    BigDecimal deposit = Optional.ofNullable(agreement.getDeposit()).orElse(BigDecimal.ZERO);
-
-    PaymentType paymentType = agreement.getPaymentTypeId() == null ? null
-        : paymentTypeMapper.selectById(agreement.getPaymentTypeId());
-    snapshot.cycleMonths = parseCycleMonths(paymentType != null ? paymentType.getPayMonthCount() : null);
-    BigDecimal rentCycleDue = rentPerMonth.multiply(BigDecimal.valueOf(snapshot.cycleMonths));
-
-    List<PaymentOrder> paidOrders = paymentOrderMapper.selectList(new LambdaQueryWrapper<PaymentOrder>()
-        .eq(PaymentOrder::getLeaseAgreementId, agreement.getId())
-        .eq(PaymentOrder::getStatus, PaymentStatus.SUCCESS));
-
-    Date termStart = agreement.getLeaseStartDate();
-    List<PaymentOrder> termOrders = new ArrayList<>();
-    for (PaymentOrder po : paidOrders) {
-      if (po.getTermStartDate() != null && isSameDay(po.getTermStartDate(), termStart)) {
-        termOrders.add(po);
-      }
-    }
-    if (termOrders.isEmpty()) {
-      for (PaymentOrder po : paidOrders) {
-        if (po.getTermStartDate() == null) {
-          termOrders.add(po);
-        }
-      }
-    }
-
-    BigDecimal depositPaid = BigDecimal.ZERO;
-    BigDecimal rentPaid = BigDecimal.ZERO;
-    BigDecimal legacyPaidTotal = BigDecimal.ZERO;
-    Date earliestPaidTime = null;
-
-    for (PaymentOrder po : termOrders) {
-      if (po.getSuccessTime() != null) {
-        if (earliestPaidTime == null || po.getSuccessTime().before(earliestPaidTime)) {
-          earliestPaidTime = po.getSuccessTime();
-        }
-      }
-      BigDecimal d = po.getDepositAmount();
-      BigDecimal r = po.getRentAmount();
-      if (d == null && r == null) {
-        legacyPaidTotal = legacyPaidTotal.add(Optional.ofNullable(po.getAmountTotal()).orElse(BigDecimal.ZERO));
-      } else {
-        depositPaid = depositPaid.add(Optional.ofNullable(d).orElse(BigDecimal.ZERO));
-        rentPaid = rentPaid.add(Optional.ofNullable(r).orElse(BigDecimal.ZERO));
-      }
-    }
-
-    snapshot.depositPaidTime = earliestPaidTime;
-
-    BigDecimal depositLeft = deposit.subtract(depositPaid);
-    if (depositLeft.compareTo(BigDecimal.ZERO) < 0) {
-      depositLeft = BigDecimal.ZERO;
-    }
-    BigDecimal legacyDepositPay = legacyPaidTotal.min(depositLeft);
-    depositPaid = depositPaid.add(legacyDepositPay);
-    legacyPaidTotal = legacyPaidTotal.subtract(legacyDepositPay);
-    rentPaid = rentPaid.add(legacyPaidTotal);
-
-    snapshot.depositPaid = depositPaid;
-    snapshot.rentPaid = rentPaid;
-
-    boolean depositHeld = false;
-    for (PaymentOrder po : paidOrders) {
-      if (termOrders.contains(po)) {
-        continue;
-      }
-      if (po.getDepositAmount() != null && po.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {
-        depositHeld = true;
-        break;
-      }
-      if (po.getDepositAmount() == null && po.getRentAmount() == null
-          && Optional.ofNullable(po.getAmountTotal()).orElse(BigDecimal.ZERO).compareTo(BigDecimal.ZERO) > 0) {
-        depositHeld = true;
-        break;
-      }
-    }
-    snapshot.depositHeld = depositHeld;
-
-    BigDecimal depositDue = depositHeld ? BigDecimal.ZERO : deposit.subtract(depositPaid);
-    if (depositDue.compareTo(BigDecimal.ZERO) < 0) {
-      depositDue = BigDecimal.ZERO;
-    }
-    snapshot.depositDue = depositDue;
-
-    BigDecimal rentLeftBeforeOffset = rentCycleDue.subtract(rentPaid);
-    if (rentLeftBeforeOffset.compareTo(BigDecimal.ZERO) < 0) {
-      rentLeftBeforeOffset = BigDecimal.ZERO;
-    }
-
-    if (depositDue.compareTo(BigDecimal.ZERO) > 0) {
-      snapshot.stage = PaymentStage.DEPOSIT;
-      snapshot.canPay = true;
-      snapshot.totalDue = depositDue;
-      return snapshot;
-    }
-
-    if (rentLeftBeforeOffset.compareTo(BigDecimal.ZERO) > 0) {
-      BigDecimal depositOffset = depositPaid.min(rentLeftBeforeOffset);
-      BigDecimal rentDue = rentLeftBeforeOffset.subtract(depositOffset);
-      if (rentDue.compareTo(BigDecimal.ZERO) <= 0) {
-        snapshot.stage = PaymentStage.NONE;
-        snapshot.canPay = false;
-        snapshot.depositOffset = depositOffset;
-        snapshot.rentDue = BigDecimal.ZERO;
-        snapshot.totalDue = BigDecimal.ZERO;
-        return snapshot;
-      }
-      snapshot.depositOffset = depositOffset;
-      snapshot.rentDue = rentDue;
-      snapshot.totalDue = rentDue;
-
-      if (!depositHeld) {
-        Date deadline = snapshot.depositPaidTime == null ? null
-            : new Date(snapshot.depositPaidTime.getTime() + RENT_PAY_GRACE_MILLIS);
-        snapshot.payDeadline = deadline;
-        if (deadline != null && new Date().after(deadline)) {
-          snapshot.stage = PaymentStage.RENT_OVERDUE;
-          snapshot.canPay = false;
-          return snapshot;
-        }
-      }
-      snapshot.stage = PaymentStage.RENT;
-      snapshot.canPay = true;
-      return snapshot;
-    }
-
-    snapshot.stage = PaymentStage.NONE;
-    snapshot.canPay = false;
-    snapshot.totalDue = BigDecimal.ZERO;
-    return snapshot;
-  }
-
   /**
    * 组装订单标题
    */
-  private String buildSubject(LeaseAgreement agreement, String scene) {
+  private String buildSubject(LeaseAgreement agreement, Integer periodIndex, Integer totalPeriods) {
     String base = "租约支付-" + Optional.ofNullable(agreement.getName()).orElse("租客");
-    if (scene != null && !scene.isBlank()) {
-      return base + "-" + scene;
+    if (periodIndex != null && totalPeriods != null) {
+      base += "-第" + periodIndex + "期/" + totalPeriods + "期";
     }
     return base;
   }
@@ -280,6 +113,7 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
 
   /**
    * 获取支付预览信息
+   * 改为从租金账单获取当前应付账单
    *
    * @param loginUser        当前登录用户
    * @param leaseAgreementId 租约ID
@@ -287,25 +121,55 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
    */
   @Override
   public PaymentPreviewVo getPaymentPreview(LoginUser loginUser, Long leaseAgreementId) {
+    // 1. 校验租约
     LeaseAgreement agreement = leaseAgreementMapper.selectById(leaseAgreementId);
     checkAccess(loginUser, agreement);
-    PayableSnapshot snapshot = calculatePayableSnapshot(agreement);
+
+    // 2. 确保账单已生成
+    rentBillService.generateBills(leaseAgreementId);
+
+    // 3. 获取当前应付账单
+    CurrentBillVo currentBill = rentBillService.getCurrentPayableBill(leaseAgreementId);
 
     PaymentPreviewVo previewVo = new PaymentPreviewVo();
     previewVo.setLeaseAgreementId(leaseAgreementId);
-    previewVo.setTotalAmount(snapshot.totalDue);
-    previewVo.setDepositAmount(snapshot.depositDue);
-    previewVo.setRentAmount(snapshot.rentDue);
-    previewVo.setDepositOffset(snapshot.depositOffset);
-    previewVo.setStage(snapshot.stage);
-    previewVo.setCanPay(snapshot.canPay);
-    previewVo.setPayDeadline(snapshot.payDeadline);
+
+    if (currentBill.getBill() == null) {
+      // 没有待支付账单
+      previewVo.setStage(PaymentStage.NONE);
+      previewVo.setCanPay(false);
+      previewVo.setTotalAmount(BigDecimal.ZERO);
+      previewVo.setDepositAmount(BigDecimal.ZERO);
+      previewVo.setRentAmount(BigDecimal.ZERO);
+      return previewVo;
+    }
+
+    BillItemVo bill = currentBill.getBill();
+    previewVo.setTotalAmount(bill.getTotalAmount());
+    previewVo.setDepositAmount(bill.getDepositAmount());
+    previewVo.setRentAmount(bill.getRentAmount());
+    previewVo.setPayDeadline(currentBill.getPayDeadline());
+
+    // 设置支付阶段
+    if (!currentBill.getCanPay()) {
+      previewVo.setStage(PaymentStage.RENT_OVERDUE);
+      previewVo.setCanPay(false);
+    } else {
+      // 根据是否有押金判断阶段
+      if (bill.getDepositAmount() != null && bill.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {
+        previewVo.setStage(PaymentStage.DEPOSIT);
+      } else {
+        previewVo.setStage(PaymentStage.RENT);
+      }
+      previewVo.setCanPay(true);
+    }
 
     return previewVo;
   }
 
   /**
    * 统一支付接口
+   * 改为关联租金账单
    *
    * @param loginUser 当前登录用户
    * @param request   支付请求参数
@@ -322,38 +186,35 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
       throw new LeaseException(ResultCodeEnum.ILLEGAL_REQUEST.getCode(), "续约待确认，后台确认后才能支付");
     }
 
-    // 2. 计算本次应付金额（按阶段）
-    PayableSnapshot snapshot = calculatePayableSnapshot(agreement);
-    if (snapshot.stage == PaymentStage.NONE) {
+    // 2. 确保账单已生成
+    rentBillService.generateBills(request.getLeaseAgreementId());
+
+    // 3. 获取当前应付账单
+    CurrentBillVo currentBill = rentBillService.getCurrentPayableBill(request.getLeaseAgreementId());
+    if (currentBill.getBill() == null) {
       throw new LeaseException(ResultCodeEnum.REPEAT_SUBMIT);
     }
-    if (snapshot.stage == PaymentStage.RENT_OVERDUE) {
-      throw new LeaseException(ResultCodeEnum.ILLEGAL_REQUEST.getCode(), "超过租金补缴期限，暂不支持支付");
-    }
-    if (!snapshot.canPay || snapshot.totalDue.compareTo(BigDecimal.ZERO) <= 0) {
-      throw new LeaseException(ResultCodeEnum.ILLEGAL_REQUEST);
+    if (!currentBill.getCanPay()) {
+      throw new LeaseException(ResultCodeEnum.ILLEGAL_REQUEST.getCode(), 
+          currentBill.getMessage() != null ? currentBill.getMessage() : "当前不可支付");
     }
 
-    BigDecimal totalAmount = snapshot.totalDue;
+    BillItemVo bill = currentBill.getBill();
+    BigDecimal totalAmount = bill.getTotalAmount();
     BigDecimal alipayAmount = Optional.ofNullable(request.getAlipayAmount()).orElse(BigDecimal.ZERO);
     BigDecimal wechatAmount = Optional.ofNullable(request.getWechatAmount()).orElse(BigDecimal.ZERO);
 
-    // 3. 校验支付金额
+    // 4. 校验支付金额
     validatePaymentAmount(request, totalAmount, alipayAmount, wechatAmount);
 
-    // 4. 确定支付方式组合
+    // 5. 确定支付方式组合
     PayMethodCombination payMethodCombination = determinePayMethodCombination(request, alipayAmount, wechatAmount);
 
-    // 5. 创建支付订单
-    BigDecimal depositAmount = PaymentStage.DEPOSIT.equals(snapshot.stage) ? totalAmount : BigDecimal.ZERO;
-    BigDecimal rentAmount = PaymentStage.RENT.equals(snapshot.stage) ? totalAmount : BigDecimal.ZERO;
-    Integer bizType = PaymentStage.DEPOSIT.equals(snapshot.stage) ? 1 : 2;
-
-    PaymentOrder paymentOrder = createPaymentOrder(agreement, request, totalAmount,
-        depositAmount, rentAmount, bizType,
+    // 6. 创建支付订单
+    PaymentOrder paymentOrder = createPaymentOrder(agreement, bill, 
         alipayAmount, wechatAmount, payMethodCombination);
 
-    // 6. 构建响应（支付宝/微信均为待支付，需用户模拟确认）
+    // 7. 构建响应
     UnifiedPayResponse response = buildPayResponse(paymentOrder,
         request.getUseAlipay(), alipayAmount,
         request.getUseWechat(), wechatAmount);
@@ -411,26 +272,32 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
   /**
    * 创建支付订单
    */
-  private PaymentOrder createPaymentOrder(LeaseAgreement agreement, UnifiedPayRequest request,
-      BigDecimal totalAmount,
-      BigDecimal depositAmount,
-      BigDecimal rentAmount,
-      Integer bizType,
+  private PaymentOrder createPaymentOrder(LeaseAgreement agreement, BillItemVo bill,
       BigDecimal alipayAmount,
       BigDecimal wechatAmount,
       PayMethodCombination payMethodCombination) {
     PaymentOrder paymentOrder = new PaymentOrder();
     paymentOrder.setOrderNo(generateOrderNo("PAY"));
     paymentOrder.setLeaseAgreementId(agreement.getId());
+    paymentOrder.setRentBillId(bill.getId());
     paymentOrder.setTermStartDate(agreement.getLeaseStartDate());
-    paymentOrder.setSubject(buildSubject(agreement, request.getScene()));
-    paymentOrder.setAmountTotal(totalAmount);
+    paymentOrder.setSubject(buildSubject(agreement, bill.getPeriodIndex(), bill.getTotalPeriods()));
+    paymentOrder.setAmountTotal(bill.getTotalAmount());
     paymentOrder.setStatus(PaymentStatus.WAITING);
     paymentOrder.setPayChannel("UNIFIED");
     paymentOrder.setPayMethod(payMethodCombination);
+    // 业务类型：1押金 2租金 3押金+租金
+    int bizType = 2;
+    if (bill.getDepositAmount() != null && bill.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {
+      if (bill.getRentAmount() != null && bill.getRentAmount().compareTo(BigDecimal.ZERO) > 0) {
+        bizType = 3;
+      } else {
+        bizType = 1;
+      }
+    }
     paymentOrder.setBizType(bizType);
-    paymentOrder.setDepositAmount(depositAmount);
-    paymentOrder.setRentAmount(rentAmount);
+    paymentOrder.setDepositAmount(bill.getDepositAmount() != null ? bill.getDepositAmount() : BigDecimal.ZERO);
+    paymentOrder.setRentAmount(bill.getRentAmount() != null ? bill.getRentAmount() : BigDecimal.ZERO);
     paymentOrder.setBalanceAmount(alipayAmount);
     paymentOrder.setWechatAmount(wechatAmount);
     paymentOrder.setRefundStatus(0);
@@ -526,27 +393,48 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     paymentOrder.setStatus(PaymentStatus.SUCCESS);
     paymentOrder.setSuccessTime(new Date());
     paymentOrderMapper.updateById(paymentOrder);
-    refreshAgreementPaymentStatus(paymentOrder.getLeaseAgreementId());
+
+    // 标记账单已支付
+    if (paymentOrder.getRentBillId() != null) {
+      rentBillService.markBillPaid(paymentOrder.getRentBillId(), paymentOrder.getId());
+    }
+
+    // 更新租约状态
+    updateAgreementStatus(paymentOrder.getLeaseAgreementId());
   }
 
-  private void refreshAgreementPaymentStatus(Long leaseAgreementId) {
+  /**
+   * 更新租约状态
+   */
+  private void updateAgreementStatus(Long leaseAgreementId) {
     LeaseAgreement agreement = leaseAgreementMapper.selectById(leaseAgreementId);
     if (agreement == null) {
-      throw new LeaseException(ResultCodeEnum.DATA_ERROR);
+      return;
     }
-    PayableSnapshot snapshot = calculatePayableSnapshot(agreement);
+
+    // 检查是否还有待支付账单
+    Long unpaidCount = rentBillMapper.selectCount(new LambdaQueryWrapper<RentBill>()
+        .eq(RentBill::getLeaseAgreementId, leaseAgreementId)
+        .in(RentBill::getStatus, BillStatus.WAITING, BillStatus.OVERDUE));
 
     LambdaUpdateWrapper<LeaseAgreement> updateWrapper = new LambdaUpdateWrapper<>();
     updateWrapper.eq(LeaseAgreement::getId, leaseAgreementId);
 
-    if (snapshot.depositDue.compareTo(BigDecimal.ZERO) <= 0) {
+    // 如果押金已支付，更新租约状态为已签约
+    RentBill firstBill = rentBillMapper.selectOne(new LambdaQueryWrapper<RentBill>()
+        .eq(RentBill::getLeaseAgreementId, leaseAgreementId)
+        .eq(RentBill::getPeriodIndex, 1));
+    if (firstBill != null && firstBill.getStatus() == BillStatus.PAID) {
       updateWrapper.set(LeaseAgreement::getStatus, LeaseStatus.SIGNED);
     }
-    if (snapshot.stage == PaymentStage.NONE) {
+
+    // 如果所有账单已支付，更新支付状态
+    if (unpaidCount == null || unpaidCount == 0) {
       updateWrapper.set(LeaseAgreement::getPaymentStatus, PaymentStatus.SUCCESS);
     } else {
       updateWrapper.set(LeaseAgreement::getPaymentStatus, PaymentStatus.WAITING);
     }
+
     leaseAgreementMapper.update(null, updateWrapper);
   }
 
@@ -687,8 +575,6 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
 
     // 7. 处理微信退款（模拟）
     if (wechatRefund.compareTo(BigDecimal.ZERO) > 0) {
-      // 实际项目中这里应该调用微信退款API
-      // 这里模拟直接成功
       for (PaymentDetail detail : paymentDetails) {
         if (detail.getPayMethod() == PayMethod.WECHAT && detail.getStatus() == PaymentStatus.SUCCESS) {
           detail.setRefundAmount(detail.getAmount());
@@ -705,19 +591,22 @@ public class UnifiedPaymentServiceImpl implements UnifiedPaymentService {
     refundRecordMapper.updateById(refundRecord);
 
     // 9. 更新支付订单退款状态
-    paymentOrder.setRefundStatus(2); // 全额退款
+    paymentOrder.setRefundStatus(2);
     paymentOrder.setRefundedAmount(totalRefund);
     paymentOrder.setStatus(PaymentStatus.REFUNDED);
     paymentOrderMapper.updateById(paymentOrder);
 
-    // 10. 更新租约状态
+    // 10. 取消未支付账单
+    rentBillService.cancelUnpaidBills(agreement.getId());
+
+    // 11. 更新租约状态
     LambdaUpdateWrapper<LeaseAgreement> agreementUpdateWrapper = new LambdaUpdateWrapper<>();
     agreementUpdateWrapper.eq(LeaseAgreement::getId, agreement.getId())
         .set(LeaseAgreement::getPaymentStatus, PaymentStatus.REFUNDED)
         .set(LeaseAgreement::getStatus, LeaseStatus.CANCELED);
     leaseAgreementMapper.update(null, agreementUpdateWrapper);
 
-    // 11. 构建响应
+    // 12. 构建响应
     RefundResponse response = new RefundResponse();
     response.setRefundNo(refundRecord.getRefundNo());
     response.setOriginalOrderNo(paymentOrder.getOrderNo());

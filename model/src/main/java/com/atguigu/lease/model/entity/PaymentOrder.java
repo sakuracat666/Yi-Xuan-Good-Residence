@@ -29,6 +29,10 @@ public class PaymentOrder extends BaseEntity {
     @TableField("lease_agreement_id")
     private Long leaseAgreementId;
 
+    @Schema(description = "关联的租金账单ID")
+    @TableField("rent_bill_id")
+    private Long rentBillId;
+
     @Schema(description = "租约周期开始日期")
     @TableField("term_start_date")
     @JsonFormat(pattern = "yyyy-MM-dd")

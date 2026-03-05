@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.lease.web.app.mapper.RentBillMapper">
+
+    <resultMap id="BillItemMap" type="com.atguigu.lease.web.app.vo.bill.BillItemVo">
+        <id property="id" column="id"/>
+        <result property="periodIndex" column="period_index"/>
+        <result property="totalPeriods" column="total_periods"/>
+        <result property="periodStartDate" column="period_start_date"/>
+        <result property="periodEndDate" column="period_end_date"/>
+        <result property="rentMonths" column="rent_months"/>
+        <result property="rentAmount" column="rent_amount"/>
+        <result property="depositAmount" column="deposit_amount"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="dueDate" column="due_date"/>
+        <result property="status" column="status"/>
+        <result property="paidTime" column="paid_time"/>
+    </resultMap>
+
+    <!-- 根据租约ID查询账单列表 -->
+    <select id="selectBillListByLeaseId" resultMap="BillItemMap">
+        SELECT id,
+               period_index,
+               total_periods,
+               period_start_date,
+               period_end_date,
+               rent_months,
+               rent_amount,
+               deposit_amount,
+               total_amount,
+               due_date,
+               status,
+               paid_time
+        FROM rent_bill
+        WHERE is_deleted = 0
+          AND lease_agreement_id = #{leaseAgreementId}
+        ORDER BY period_index ASC
+    </select>
+
+    <!-- 统计租约已支付金额 -->
+    <select id="sumPaidAmountByLeaseId" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(total_amount), 0)
+        FROM rent_bill
+        WHERE is_deleted = 0
+          AND lease_agreement_id = #{leaseAgreementId}
+          AND status = 1
+    </select>
+
+    <!-- 统计租约总租金金额 -->
+    <select id="sumRentAmountByLeaseId" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(rent_amount), 0)
+        FROM rent_bill
+        WHERE is_deleted = 0
+          AND lease_agreement_id = #{leaseAgreementId}
+    </select>
+
+    <!-- 统计租约押金金额 -->
+    <select id="sumDepositAmountByLeaseId" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(deposit_amount), 0)
+        FROM rent_bill
+        WHERE is_deleted = 0
+          AND lease_agreement_id = #{leaseAgreementId}
+    </select>
+</mapper>
