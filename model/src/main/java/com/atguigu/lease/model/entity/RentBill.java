@@ -32,6 +32,10 @@ public class RentBill extends BaseEntity {
     @TableField("total_periods")
     private Integer totalPeriods;
 
+    @Schema(description = "账单类型：1押金 2租金")
+    @TableField("bill_type")
+    private Integer billType;
+
     @Schema(description = "本期租金周期开始日期")
     @TableField("period_start_date")
     @JsonFormat(pattern = "yyyy-MM-dd")

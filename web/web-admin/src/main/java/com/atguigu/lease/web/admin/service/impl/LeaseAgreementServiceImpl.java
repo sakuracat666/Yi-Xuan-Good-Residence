@@ -9,6 +9,7 @@ import com.atguigu.lease.web.admin.mapper.*;
 import com.atguigu.lease.web.admin.service.LeaseAgreementService;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementQueryVo;
 import com.atguigu.lease.web.admin.vo.agreement.AgreementVo;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -91,12 +92,23 @@ public class LeaseAgreementServiceImpl extends ServiceImpl<LeaseAgreementMapper,
     /**
      * 保存或修改租约信息
      *
-     * 新增租约时，如果未显式设置支付状态，则默认置为待支付，
-     * 以便用户端首页可以根据 paymentStatus 展示待支付提醒。
+     * 新增租约时校验房间是否已有有效租约（签约待确认、已签约、续约待确认），
+     * 防止同一房间被重复创建租约；
+     * 如果未显式设置支付状态，则默认置为待支付。
      */
     @Override
     public boolean saveOrUpdate(LeaseAgreement entity) {
         if (entity.getId() == null) {
+            // 新增租约：校验房间是否已有有效租约
+            Long count = leaseAgreementMapper.selectCount(new LambdaQueryWrapper<LeaseAgreement>()
+                    .eq(LeaseAgreement::getRoomId, entity.getRoomId())
+                    .in(LeaseAgreement::getStatus,
+                            LeaseStatus.SIGNING,
+                            LeaseStatus.SIGNED,
+                            LeaseStatus.RENEWING));
+            if (count > 0) {
+                throw new LeaseException(ResultCodeEnum.ADMIN_ROOM_LEASED);
+            }
             // 新增租约：如果未设置支付状态，则默认待支付
             if (entity.getPaymentStatus() == null) {
                 entity.setPaymentStatus(PaymentStatus.WAITING);

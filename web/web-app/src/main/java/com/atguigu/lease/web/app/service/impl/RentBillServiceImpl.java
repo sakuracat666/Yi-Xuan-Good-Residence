@@ -40,6 +40,10 @@ public class RentBillServiceImpl implements RentBillService {
 
     /**
      * 根据租约生成所有账单
+     * 新逻辑：
+     * 1. 如果有押金，先生成押金账单（单独支付）
+     * 2. 第一期租金账单需要减去押金金额（押金抵扣）
+     * 3. 后续租金账单为正常金额
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -66,25 +70,49 @@ public class RentBillServiceImpl implements RentBillService {
         // 4. 计算总租期月数
         int totalMonths = calculateTotalMonths(agreement.getLeaseStartDate(), agreement.getLeaseEndDate());
 
-        // 5. 计算总期数
-        int totalPeriods = (int) Math.ceil((double) totalMonths / payMonths);
+        // 5. 计算租金期数
+        int rentPeriods = (int) Math.ceil((double) totalMonths / payMonths);
 
         // 6. 获取月租金和押金
         BigDecimal rentPerMonth = agreement.getRent() != null ? agreement.getRent() : BigDecimal.ZERO;
         BigDecimal deposit = agreement.getDeposit() != null ? agreement.getDeposit() : BigDecimal.ZERO;
+        boolean hasDeposit = deposit.compareTo(BigDecimal.ZERO) > 0;
 
-        // 7. 循环生成每期账单
+        // 7. 计算总期数（如果有押金，总期数 = 押金账单 + 租金账单）
+        int totalPeriods = hasDeposit ? rentPeriods + 1 : rentPeriods;
+
         List<RentBill> bills = new ArrayList<>();
+        int periodIndex = 1;
+
+        // 8. 如果有押金，先生成押金账单
+        if (hasDeposit) {
+            RentBill depositBill = new RentBill();
+            depositBill.setLeaseAgreementId(leaseAgreementId);
+            depositBill.setPeriodIndex(periodIndex++);
+            depositBill.setTotalPeriods(totalPeriods);
+            depositBill.setBillType(1); // 押金账单
+            depositBill.setPeriodStartDate(agreement.getLeaseStartDate());
+            depositBill.setPeriodEndDate(agreement.getLeaseStartDate());
+            depositBill.setRentMonths(0);
+            depositBill.setRentAmount(BigDecimal.ZERO);
+            depositBill.setDepositAmount(deposit);
+            depositBill.setTotalAmount(deposit);
+            depositBill.setDueDate(agreement.getLeaseStartDate());
+            depositBill.setStatus(BillStatus.WAITING);
+            bills.add(depositBill);
+        }
+
+        // 9. 生成租金账单
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(agreement.getLeaseStartDate());
-
         int remainingMonths = totalMonths;
 
-        for (int i = 1; i <= totalPeriods; i++) {
+        for (int i = 1; i <= rentPeriods; i++) {
             RentBill bill = new RentBill();
             bill.setLeaseAgreementId(leaseAgreementId);
-            bill.setPeriodIndex(i);
+            bill.setPeriodIndex(periodIndex++);
             bill.setTotalPeriods(totalPeriods);
+            bill.setBillType(2); // 租金账单
 
             // 计算本期租金周期开始日期
             Date periodStart = calendar.getTime();
@@ -108,14 +136,21 @@ public class RentBillServiceImpl implements RentBillService {
             // 应付日期 = 本期租金周期开始日期
             bill.setDueDate(periodStart);
 
-            // 计算金额
+            // 计算租金金额
             BigDecimal rentAmount = rentPerMonth.multiply(BigDecimal.valueOf(currentRentMonths));
-            BigDecimal depositAmount = (i == 1) ? deposit : BigDecimal.ZERO;
-            BigDecimal totalAmount = rentAmount.add(depositAmount);
+
+            // 第一期租金需要减去押金（押金抵扣）
+            if (i == 1 && hasDeposit) {
+                rentAmount = rentAmount.subtract(deposit);
+                // 如果抵扣后金额为负数或零，说明押金足够支付第一期租金
+                if (rentAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                    rentAmount = BigDecimal.ZERO;
+                }
+            }
 
             bill.setRentAmount(rentAmount);
-            bill.setDepositAmount(depositAmount);
-            bill.setTotalAmount(totalAmount);
+            bill.setDepositAmount(BigDecimal.ZERO);
+            bill.setTotalAmount(rentAmount);
             bill.setStatus(BillStatus.WAITING);
 
             bills.add(bill);
@@ -125,7 +160,7 @@ public class RentBillServiceImpl implements RentBillService {
             remainingMonths -= currentRentMonths;
         }
 
-        // 8. 批量插入
+        // 10. 批量插入
         for (RentBill bill : bills) {
             rentBillMapper.insert(bill);
         }
@@ -305,21 +340,35 @@ public class RentBillServiceImpl implements RentBillService {
 
     /**
      * 计算总租期月数
+     * 注意：租期计算逻辑是计算从开始日期到结束日期之间包含的月份
+     * 例如：2026-03-11 到 2026-04-12，是2个月（3月、4月）
+     * 例如：2026-03-11 到 2026-03-31，是1个月（3月）
+     * 例如：2026-03-11 到 2026-05-10，是2个月（3月、4月），因为5月不满一个月
      */
     private int calculateTotalMonths(Date startDate, Date endDate) {
         if (startDate == null || endDate == null) {
             return 0;
         }
+
         Calendar start = Calendar.getInstance();
         start.setTime(startDate);
         Calendar end = Calendar.getInstance();
         end.setTime(endDate);
 
+        // 计算年份差和月份差
         int years = end.get(Calendar.YEAR) - start.get(Calendar.YEAR);
         int months = end.get(Calendar.MONTH) - start.get(Calendar.MONTH);
 
-        // +1 因为包含起始月
-        return years * 12 + months + 1;
+        // 计算总月数
+        int totalMonths = years * 12 + months;
+
+        // 如果结束日期的日 < 开始日期的日，说明不满一个月
+        if (end.get(Calendar.DAY_OF_MONTH) < start.get(Calendar.DAY_OF_MONTH)) {
+            totalMonths--;
+        }
+
+        // 至少1个月
+        return Math.max(1, totalMonths);
     }
 
     /**
