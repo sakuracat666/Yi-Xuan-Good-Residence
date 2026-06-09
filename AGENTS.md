@@ -1,7 +1,5 @@
 # AGENTS.md
 
-This file provides guidance to Qoder (qoder.com) when working with code in this repository.
-
 ## 项目概述
 
 易选好寓（Lease Platform）—— 面向长租公寓业务的前后端分离解决方案，提供租客端（web-app）与管理端（web-admin）两套后端服务。
