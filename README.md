@@ -276,5 +276,4 @@ java -jar web/web-app/target/web-app-*.jar      # 租客端
 5. 发起 Pull Request
 
 ## 许可证
-
-本项目遵循企业内部许可证。若需开源，请补充许可证信息（如 MIT、Apache 2.0 等）。
+本项目采用 [MIT License](./LICENSE) 开源协议 - 详见 [LICENSE](./LICENSE) 文件。
