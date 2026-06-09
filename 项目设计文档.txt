@@ -1,0 +1,582 @@
+================================================================================
+                    易选好寓平台 — 项目设计文档
+================================================================================
+
+版本：v1.0
+项目：易选好寓（Lease Platform）
+技术架构：Spring Boot 3.3.8 + MyBatis-Plus 3.5.6 + MySQL 8.x
+
+================================================================================
+目录
+================================================================================
+
+1. 系统总体设计
+2. 技术架构设计
+3. 模块划分与职责
+4. 数据库设计
+5. 接口设计
+6. 核心业务逻辑设计
+7. 安全设计
+8. 公共组件设计
+9. 部署架构设计
+
+================================================================================
+1. 系统总体设计
+================================================================================
+
+1.1 系统定位
+
+    易选好寓是一套面向长租公寓业务的全流程运营管理平台，采用前后端分离架构，
+    后端提供两套独立的Spring Boot服务：管理端（web-admin）和租客端（web-app），
+    分别服务于公寓管理员和租客用户。
+
+1.2 设计原则
+
+    - 分层架构：Controller → Service → Mapper，职责清晰
+    - 统一规范：统一返回格式、统一异常处理、统一枚举管理
+    - 最小依赖：业务模块仅依赖common和model，模块间无直接依赖
+    - 逻辑删除：所有实体均使用is_deleted字段实现软删除
+    - 自动化：利用MyBatis-Plus的自动填充、分页、逻辑删除等能力减少样板代码
+
+1.3 系统上下文
+
+    +-----------+        REST/JSON        +-----------+
+    | 管理端前端 |  <-------------------->  | web-admin |
+    |  (Vue)    |    JWT Bearer Token     |  :8081    |
+    +-----------+                         +-----+-----+
+                                                |
+    +-----------+        REST/JSON        +-----+-----+
+    | 租客端前端 |  <-------------------->  |  web-app  |
+    |  (Vue)    |    JWT Bearer Token     |  :8082    |
+    +-----------+                         +-----+-----+
+                                                |
+                         +----------+-----------+-----------+
+                         |          |           |           |
+                    +----+----+ +---+---+ +-----+-----+ +-+-------+
+                    | MySQL   | | Redis | |   MinIO   | | Aliyun  |
+                    | 8.x    | | 6.x   | |  8.x     | |  SMS    |
+                    +---------+ +-------+ +-----------+ +---------+
+                                                       +-----------+
+                                                       | DeepSeek  |
+                                                       |  AI API   |
+                                                       +-----------+
+
+================================================================================
+2. 技术架构设计
+================================================================================
+
+2.1 技术选型
+
+    ┌─────────────┬─────────────────────────┬────────────────────────────────┐
+    │ 类别        │ 技术选型                │ 选型理由                       │
+    ├─────────────┼─────────────────────────┼────────────────────────────────┤
+    │ 运行环境    │ JDK 17                  │ Spring Boot 3.x 最低要求       │
+    │ 应用框架    │ Spring Boot 3.3.8       │ 稳定LTS版本，Jakarta EE支持    │
+    │ ORM框架     │ MyBatis-Plus 3.5.6      │ 内置CRUD/分页/逻辑删除/自动填充│
+    │ 数据库      │ MySQL 8.x               │ 成熟稳定，InnoDB事务支持       │
+    │ 缓存        │ Redis 6.x               │ 高性能KV存储，验证码/Token管理  │
+    │ 对象存储    │ MinIO 8.x               │ S3兼容协议，私有化部署         │
+    │ 短信服务    │ 阿里云SMS SDK 2.0.23    │ 国内主流短信服务商             │
+    │ AI能力      │ Spring AI 1.0.0-M5      │ Spring官方AI集成框架           │
+    │             │ + DeepSeek              │ OpenAI协议兼容，性价比高       │
+    │ 接口文档    │ Knife4j 4.1.0           │ OpenAPI 3规范，UI友好          │
+    │ 认证        │ JJWT 0.11.2             │ 轻量JWT库，HS256签名           │
+    │ 验证码      │ EasyCaptcha 1.6.2       │ 简单易用的图形验证码库         │
+    │ 连接池      │ HikariCP                │ Spring Boot默认高性能连接池    │
+    │ 构建工具    │ Maven                   │ 多模块项目管理成熟方案         │
+    └─────────────┴─────────────────────────┴────────────────────────────────┘
+
+2.2 项目模块结构
+
+    lease (groupId: com.atguigu, artifactId: lease)
+    │
+    ├── pom.xml                 # 父POM，统一依赖版本管理
+    ├── common/                 # 公共组件模块
+    ├── model/                  # 领域模型模块
+    └── web/                    # Web模块聚合
+        ├── web-admin/          # 管理端后端
+        └── web-app/            # 租客端后端
+
+    依赖关系：
+    web-admin ──依赖──> common ──依赖──> model
+    web-app   ──依赖──> common ──依赖──> model
+
+2.3 各模块包结构
+
+    common/src/main/java/com/atguigu/lease/common/
+    ├── constant/          # 常量定义（RedisConstant）
+    ├── exception/         # 异常处理（LeaseException, GlobalExceptionHandler）
+    ├── login/             # 登录上下文（LoginUser, LoginUserHolder）
+    ├── minio/             # MinIO配置（MinioConfiguration, MinioProperties）
+    ├── mybatisplus/       # MyBatis-Plus配置（分页插件, 自动填充）
+    ├── redis/             # Redis配置（RedisConfiguration）
+    ├── result/            # 统一返回（Result, ResultCodeEnum）
+    ├── sms/               # 短信配置（AliyunSMSProperties, AliyunSmsConfiguration）
+    └── utils/             # 工具类（JwtUtil, VerifyCodeUtil）
+
+    model/src/main/java/com/atguigu/lease/model/
+    ├── entity/            # 实体类（39个，继承BaseEntity）
+    ├── enums/             # 枚举类（16个，实现BaseEnum接口）
+    ├── dto/               # 数据传输对象
+    └── vo/                # 视图对象
+
+    web-admin/src/main/java/com/atguigu/lease/web/admin/
+    ├── controller/        # 控制器层（按业务域分包：apartment, lease, login, payment等）
+    ├── service/           # 服务接口层
+    ├── service/impl/      # 服务实现层
+    └── mapper/            # 数据访问层
+
+    web-app/src/main/java/com/atguigu/lease/web/app/
+    ├── controller/        # 控制器层（按业务域分包：agreement, apartment, bill, collect等）
+    ├── service/           # 服务接口层
+    ├── service/impl/      # 服务实现层
+    └── mapper/            # 数据访问层
+
+================================================================================
+3. 模块划分与职责
+================================================================================
+
+3.1 common 模块
+
+    职责：提供被多个模块共享复用的基础能力
+    ┌───────────────────────┬──────────────────────────────────────────────┐
+    │ 组件                  │ 说明                                         │
+    ├───────────────────────┼──────────────────────────────────────────────┤
+    │ Result<T>             │ 全局统一返回结果封装（code/message/data）     │
+    │ ResultCodeEnum        │ 返回状态码枚举（200成功，各类错误码）         │
+    │ LeaseException        │ 自定义业务异常                                │
+    │ GlobalExceptionHandler│ @ControllerAdvice全局异常拦截器               │
+    │ JwtUtil               │ JWT创建/解析，HS256签名，10小时有效期         │
+    │ LoginUser             │ 登录用户信息封装（userId/username/userType）  │
+    │ LoginUserHolder       │ ThreadLocal存储当前线程登录用户               │
+    │ RedisConfiguration    │ Redis序列化配置（String Key + Java Value）    │
+    │ RedisConstant         │ Redis Key前缀和TTL常量                       │
+    │ MinioConfiguration    │ MinIO客户端Bean配置                         │
+    │ MinioProperties       │ MinIO连接参数（@ConfigurationProperties）     │
+    │ AliyunSmsConfiguration│ 阿里云短信客户端配置                          │
+    │ AliyunSMSProperties   │ 阿里云短信参数                                │
+    │ MybatisPlusConfiguration│ MyBatis-Plus分页插件配置                    │
+    │ MybatisMetaObjectHandler│ createTime/updateTime自动填充              │
+    │ VerifyCodeUtil        │ 图形验证码生成工具                            │
+    └───────────────────────┴──────────────────────────────────────────────┘
+
+3.2 model 模块
+
+    职责：定义数据模型，被common和web模块共享
+
+    实体类继承关系：
+    BaseEntity（id, createTime, updateTime, isDeleted）
+    ├── ApartmentInfo（公寓信息）
+    ├── RoomInfo（房间信息）
+    ├── LeaseAgreement（租约）
+    ├── UserInfo（租客用户）
+    ├── SystemUser（系统用户）
+    ├── PaymentOrder（支付订单）
+    ├── RentBill（租金账单）
+    ├── RepairRequest（报修请求）
+    └── ... （共39个实体类）
+
+    枚举类设计：
+    所有枚举实现BaseEnum接口，使用@EnumValue注解标注数据库存储值，
+    MyBatis-Plus通过default-enum-type-handler自动完成枚举与数据库值的转换。
+
+3.3 web-admin 模块
+
+    职责：管理端后端服务，端口8081
+    核心功能域：
+    - 公寓与房间管理（CRUD + 发布状态 + 关联数据维护）
+    - 基础配置管理（属性、配套、杂费、标签、租期、支付方式）
+    - 租约管理（创建、审核、状态流转）
+    - 预约看房管理（列表、状态更新）
+    - 报修管理（指派、进度、状态）
+    - 支付订单管理（查询、关闭、手动确认）
+    - 用户管理（租客管理、后台用户管理、岗位管理）
+    - 租户画像管理
+
+3.4 web-app 模块
+
+    职责：租客端后端服务，端口8082
+    核心功能域：
+    - 登录认证（手机号 + 短信验证码）
+    - 房源浏览（公寓、房间详情查询，条件筛选）
+    - 预约看房（创建预约、查看列表）
+    - 租约管理（查看、确认、退租、续约）
+    - 账单管理（查看账单列表、当前应付）
+    - 支付功能（统一支付、多支付渠道、退款）
+    - 报修管理（提交、查看、撤销）
+    - 个人中心（收藏、浏览历史、资料编辑）
+    - AI对话助手（DeepSeek集成，Function Calling）
+
+================================================================================
+4. 数据库设计
+================================================================================
+
+4.1 数据库总览
+
+    数据库名：lease
+    字符集：UTF-8
+    表数量：约39张
+    主键策略：自增（BIGINT）
+    公共字段：id, create_time, update_time, is_deleted
+
+4.2 核心表设计
+
+    ┌─────────────────────┬───────────────────────────────────────────────┐
+    │ 表名                │ 说明与核心字段                                  │
+    ├─────────────────────┼───────────────────────────────────────────────┤
+    │ apartment_info      │ 公寓信息：name, introduction, province/city/  │
+    │                     │ district_id, address_detail, lat/lng, phone,  │
+    │                     │ is_release                                    │
+    │ room_info           │ 房间信息：room_number, rent, apartment_id,    │
+    │                     │ is_release                                    │
+    │ graph_info          │ 图片信息：name, item_type(1公寓/2房间),       │
+    │                     │ item_id, url                                  │
+    │ lease_agreement     │ 租约：phone, name, id_number, apartment_id,   │
+    │                     │ room_id, lease_start/end_date, lease_term_id, │
+    │                     │ rent, deposit, payment_type_id, status,       │
+    │                     │ payment_status                                │
+    │ rent_bill           │ 账单：lease_agreement_id, period_index,       │
+    │                     │ bill_type(1押金/2租金), amount, due_date,     │
+    │                     │ status, payment_order_id                      │
+    │ payment_order       │ 支付订单：order_no, lease_agreement_id,       │
+    │                     │ rent_bill_id, amount_total, status,           │
+    │                     │ pay_channel, pay_method, deposit_amount,      │
+    │                     │ rent_amount, balance_amount, wechat_amount    │
+    │ payment_detail      │ 支付明细：payment_order_id, pay_method,       │
+    │                     │ amount, status, transaction_no                │
+    │ refund_record       │ 退款记录：refund_no, payment_order_id,        │
+    │                     │ refund_amount, status, reason                 │
+    │ view_appointment    │ 看房预约：user_id, apartment_id,              │
+    │                     │ appointment_time, appointment_status          │
+    │ repair_request      │ 报修工单：user_id, room_id, title,            │
+    │                     │ description, priority, status, handler_id     │
+    │ repair_progress     │ 报修进度：request_id, status, content,        │
+    │                     │ operator_id, operator_role                    │
+    │ user_info           │ 租客用户：phone, password, avatar_url,        │
+    │                     │ nickname, status, gender, signature           │
+    │ system_user         │ 系统用户：username, password, name, type,     │
+    │                     │ phone, post_id, status                        │
+    │ user_balance        │ 用户余额：user_id, balance, frozen_amount,    │
+    │                     │ version(乐观锁)                               │
+    │ balance_transaction │ 余额流水：user_id, type, amount,              │
+    │                     │ balance_before/after, related_order_no        │
+    │ tenant_profile_     │ 租户画像：user_id, 活跃度/意向/价值/          │
+    │ features            │ 付款行为标签, browse/appointment统计           │
+    └─────────────────────┴───────────────────────────────────────────────┘
+
+4.3 关联关系表
+
+    apartment_facility    — 公寓 ↔ 配套设施（多对多）
+    apartment_fee_value   — 公寓 ↔ 杂费值（多对多）
+    apartment_label       — 公寓 ↔ 标签（多对多）
+    room_attr_value       — 房间 ↔ 属性值（多对多）
+    room_facility         — 房间 ↔ 配套设施（多对多）
+    room_label            — 房间 ↔ 标签（多对多）
+    room_lease_term       — 房间 ↔ 租期（多对多）
+    room_payment_type     — 房间 ↔ 支付方式（多对多）
+
+4.4 ER关系概要
+
+    Province ──1:N──> City ──1:N──> District
+    Apartment ──1:N──> Room
+    Apartment ──M:N──> Facility（通过apartment_facility）
+    Apartment ──M:N──> Label（通过apartment_label）
+    Apartment ──M:N──> FeeValue（通过apartment_fee_value）
+    Room ──M:N──> AttrValue（通过room_attr_value）
+    Room ──M:N──> Facility（通过room_facility）
+    Room ──M:N──> Label（通过room_label）
+    Room ──M:N──> LeaseTerm（通过room_lease_term）
+    Room ──M:N──> PaymentType（通过room_payment_type）
+    LeaseAgreement ──1:N──> RentBill
+    LeaseAgreement ──1:N──> PaymentOrder
+    PaymentOrder ──1:N──> PaymentDetail
+    PaymentOrder ──1:N──> RefundRecord
+    RepairRequest ──1:N──> RepairProgress
+    RepairRequest ──1:N──> RepairAttachment
+
+================================================================================
+5. 接口设计
+================================================================================
+
+5.1 接口规范
+
+    - 协议：HTTP/HTTPS
+    - 数据格式：JSON（Content-Type: application/json）
+    - 认证：JWT Bearer Token，Header: Authorization
+    - 统一返回格式：
+      {
+          "code": 200,        // 状态码
+          "message": "操作成功", // 提示信息
+          "data": {}           // 业务数据
+      }
+    - 接口文档：Knife4j / OpenAPI 3，访问 /doc.html
+
+5.2 管理端接口清单（web-admin, 端口8081）
+
+    模块            路径前缀                接口数
+    ─────────────────────────────────────────────────
+    登录认证        /admin                  3
+    公寓管理        /admin/apartment        6
+    房间管理        /admin/room             6
+    属性管理        /admin/attr             5
+    配套管理        /admin/facility         3
+    杂费管理        /admin/fee              5
+    标签管理        /admin/label            3
+    租期管理        /admin/term             3
+    支付方式        /admin/payment          3
+    地区信息        /admin/region           3
+    文件上传        /admin/file             1
+    租约管理        /admin/agreement        5
+    预约看房        /admin/appointment      2
+    报修管理        /admin/repair           5
+    支付订单        /admin/payment/order    4
+    租客管理        /admin/user             2
+    后台用户        /admin/system/user      6
+    岗位管理        /admin/system/post      6
+    租户画像        /admin/profile/tenant   2
+
+5.3 租客端接口清单（web-app, 端口8082）
+
+    模块            路径前缀                接口数
+    ─────────────────────────────────────────────────
+    登录认证        /app                    3
+    公寓浏览        /app/apartment          1
+    房间浏览        /app/room               3
+    预约看房        /app/appointment        3
+    租约管理        /app/agreement          4
+    账单管理        /app/rent-bill          3
+    基础支付        /app/payment            5
+    统一支付        /app/payment/unified    6
+    支付方式        /app/payment            2
+    报修管理        /app/repair             5
+    房间收藏        /app/collect            5
+    浏览历史        /app/history            1
+    个人资料        /app/user               1
+    文件上传        /app/file               1
+    地区查询        /app/region             3
+    租期查询        /app/term               1
+    AI对话          /app/ai/test            1
+
+5.4 外部接口调用
+
+    阿里云短信：
+    - 服务端点：dysmsapi.aliyuncs.com
+    - 用途：发送短信验证码
+    - 配置：AccessKeyId + AccessKeySecret
+
+    DeepSeek AI：
+    - 服务端点：https://api.deepseek.com
+    - 协议：OpenAI兼容协议
+    - 模型：deepseek-chat
+    - 配置：API Key
+
+    MinIO：
+    - 协议：S3兼容
+    - 用途：图片、文件等非结构化数据存储
+    - 配置：Endpoint + AccessKey + SecretKey + Bucket
+
+================================================================================
+6. 核心业务逻辑设计
+================================================================================
+
+6.1 租约状态机
+
+    ┌─────────────┐     确认签约      ┌─────────────┐
+    │ 签约待确认(1)│ ──────────────>  │  已签约(2)   │
+    └──────┬──────┘                  └──────┬──────┘
+           │                                │
+           │ 取消                             │ 租期到期
+           │                                │
+           v                                v
+    ┌─────────────┐                  ┌─────────────┐
+    │  已取消(3)   │                  │  已到期(4)   │
+    └─────────────┘                  └─────────────┘
+
+    已签约(2) ──申请退租──> 退租待确认(5) ──确认退租──> 已退租(6)
+    已签约(2) ──申请续约──> 续约待确认(7) ──确认续约──> 新租约(已签约)
+
+6.2 支付状态机
+
+    ┌─────────────┐     支付成功      ┌─────────────┐
+    │  待支付(0)   │ ──────────────>  │  已支付(1)   │
+    └──────┬──────┘                  └──────┬──────┘
+           │                                │
+           │ 管理员关闭                      │ 退款
+           │                                │
+           v                                v
+    ┌─────────────┐                  ┌─────────────┐
+    │  已关闭(2)   │                  │  已退款(3)   │
+    └─────────────┘                  └─────────────┘
+
+6.3 报修状态机
+
+    ┌─────────────┐     指派处理人    ┌─────────────┐     完成      ┌─────────────┐
+    │  待处理(1)   │ ──────────────>  │  处理中(2)   │ ──────────>  │  已完成(3)   │
+    └──────┬──────┘                  └─────────────┘              └─────────────┘
+           │
+           │ 租客撤销
+           v
+    ┌─────────────┐
+    │  已取消(4)   │
+    └─────────────┘
+
+6.4 公寓保存逻辑
+
+    保存/更新公寓时采用事务操作，在保存apartment_info主表后：
+    1. 删除原有apartment_facility关联 → 批量插入新关联
+    2. 删除原有apartment_label关联 → 批量插入新关联
+    3. 删除原有apartment_fee_value关联 → 批量插入新关联
+
+6.5 房间保存逻辑
+
+    保存/更新房间时采用事务操作，在保存room_info主表后：
+    1. 删除原有room_attr_value关联 → 批量插入新关联
+    2. 删除原有room_facility关联 → 批量插入新关联
+    3. 删除原有room_label关联 → 批量插入新关联
+    4. 删除原有graph_info（房间图片）→ 批量插入新图片
+    5. 删除原有room_lease_term关联 → 批量插入新关联
+    6. 删除原有room_payment_type关联 → 批量插入新关联
+
+6.6 统一支付逻辑
+
+    支付预览：
+    1. 根据租约获取待支付账单（押金 + 租金）
+    2. 计算建议支付金额（deposit + rent）
+    3. 返回可选支付方式列表
+
+    支付执行：
+    1. 根据pay_method_combination判断支付模式
+    2. 创建PaymentOrder（主订单）
+    3. 创建PaymentDetail（支付明细，按渠道拆分金额）
+    4. 调用对应支付渠道完成支付
+    5. 支付回调处理：更新明细状态 → 更新订单状态 → 更新账单状态
+
+    退款逻辑：
+    1. 查询原支付订单和支付明细
+    2. 按原支付渠道原路退回
+    3. 创建RefundRecord记录退款信息
+    4. 支持部分退款（余额 + 微信混合退款）
+
+6.7 AI对话助手逻辑（FunctionController）
+
+    采用Spring AI的ChatClient构建对话能力：
+    1. 系统提示词定义AI角色和能力边界
+    2. Function Calling注册查询函数（公寓信息、房间信息、设施配套等）
+    3. 会话记忆：使用ChatMemory实现上下文连续对话
+    4. 位置感知：根据用户浏览记录推断用户偏好
+    5. 流式响应：使用Flux<ChatResponse>实现逐字输出
+
+================================================================================
+7. 安全设计
+================================================================================
+
+7.1 认证机制
+
+    管理端：
+    1. 请求图形验证码 → 生成验证码 → 存储Redis（key前缀 + UUID，TTL 60秒）
+    2. 提交用户名 + 密码 + 验证码key + 验证码value
+    3. 校验验证码 → 校验用户名/密码 → 生成JWT Token → 存储Redis（TTL 10小时）
+    4. 返回Token
+
+    租客端：
+    1. 请求短信验证码 → 生成6位数字 → 存储Redis（key前缀 + 手机号，TTL 10分钟）
+       → 调用阿里云SMS发送
+    2. 提交手机号 + 验证码
+    3. 校验验证码 → 校验手机号存在 → 生成JWT Token → 存储Redis（TTL 10小时）
+    4. 返回Token
+
+7.2 授权机制
+
+    - 接口拦截器验证Header中的Authorization Bearer Token
+    - 从Token中解析用户信息 → 查询Redis验证Token有效性
+    - 将LoginUser存入LoginUserHolder（ThreadLocal），供业务层获取当前用户
+
+7.3 数据安全
+
+    - 管理端密码：MD5加密存储
+    - 逻辑删除：所有删除操作更新is_deleted字段，不物理删除
+    - 乐观锁：user_balance表使用version字段防止并发更新
+    - 数据隔离：租客端接口通过LoginUserHolder获取当前用户ID，仅能操作自己的数据
+
+================================================================================
+8. 公共组件设计
+================================================================================
+
+8.1 统一返回封装（Result<T>）
+
+    public class Result<T> {
+        private Integer code;     // 状态码
+        private String message;   // 提示信息
+        private T data;           // 业务数据
+
+        public static <T> Result<T> ok(T data);
+        public static <T> Result<T> ok();
+        public static <T> Result<T> fail(ResultCodeEnum resultCodeEnum);
+        public static <T> Result<T> fail(Integer code, String message);
+    }
+
+8.2 全局异常处理（GlobalExceptionHandler）
+
+    @RestControllerAdvice
+    - 捕获 LeaseException（业务异常）→ 返回对应ResultCodeEnum
+    - 捕获 Exception（系统异常）→ 返回通用错误信息
+
+8.3 MyBatis-Plus配置
+
+    分页插件：MybatisPlusConfiguration 注册 MybatisPlusInterceptor + PaginationInnerInterceptor
+    自动填充：MybatisMetaObjectHandler 在insertFill时自动设置createTime和updateTime，
+              在updateFill时自动设置updateTime
+    枚举处理：通过default-enum-type-handler配置，自动将@EnumValue标注的字段值与数据库互转
+    逻辑删除：BaseEntity的isDeleted字段使用@TableLogic注解
+
+8.4 Redis Key设计
+
+    管理端验证码：admin:login:captcha:{captchaKey}，TTL 60秒
+    租客端验证码：app:login:code:{phone}，TTL 10分钟
+    管理端Token：admin:login:token:{token}，TTL 10小时
+    租客端Token：app:login:token:{token}，TTL 10小时
+
+================================================================================
+9. 部署架构设计
+================================================================================
+
+9.1 运行环境要求
+
+    - JDK 17+
+    - Maven 3.9+
+    - MySQL 8.x（数据库名 lease）
+    - Redis 6.x
+    - MinIO 8.x
+
+9.2 服务端口分配
+
+    web-admin：8081（管理端后端）
+    web-app：8082（租客端后端）
+
+9.3 构建与启动
+
+    构建命令：mvn clean install
+    启动管理端：mvn spring-boot:run -pl web/web-admin -am
+    启动租客端：mvn spring-boot:run -pl web/web-app -am
+
+    打包部署：
+    mvn package -DskipTests
+    java -jar web/web-admin/target/web-admin-*.jar
+    java -jar web/web-app/target/web-app-*.jar
+
+9.4 配置文件
+
+    web-admin: web/web-admin/src/main/resources/application.yml
+    web-app:   web/web-app/src/main/resources/application.yml
+
+    主要配置项：
+    - spring.datasource：MySQL连接（HikariCP连接池，最大12连接）
+    - spring.data.redis：Redis连接
+    - spring.ai.openai：DeepSeek API配置
+    - minio：MinIO连接配置
+    - aliyun.sms：阿里云短信配置
+    - mybatis-plus：ORM配置（日志、枚举处理器等）
+
+================================================================================
+                              — 文档结束 —
+================================================================================
