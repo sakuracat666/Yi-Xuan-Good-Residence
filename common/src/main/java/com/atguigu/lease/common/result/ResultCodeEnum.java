@@ -29,6 +29,7 @@ public enum ResultCodeEnum {
     ADMIN_ACCESS_FORBIDDEN(309, "无访问权限"),
     ADMIN_APARTMENT_DELETE_ERROR(310, "请先删除公寓信息"),
     ADMIN_ROOM_LEASED(311, "该房间已有有效租约"),
+    ADMIN_DEPOSIT_GREATER_THAN_RENT(312, "押金不能大于等于租金"),
 
     APP_LOGIN_AUTH(501, "未登陆"),
     APP_LOGIN_PHONE_EMPTY(502, "手机号码为空"),

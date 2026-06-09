@@ -98,6 +98,11 @@ public class LeaseAgreementServiceImpl extends ServiceImpl<LeaseAgreementMapper,
      */
     @Override
     public boolean saveOrUpdate(LeaseAgreement entity) {
+
+        if (entity.getDeposit().compareTo(entity.getRent()) >= 0) {
+            throw new LeaseException(ResultCodeEnum.ADMIN_DEPOSIT_GREATER_THAN_RENT);
+        }
+
         if (entity.getId() == null) {
             // 新增租约：校验房间是否已有有效租约
             Long count = leaseAgreementMapper.selectCount(new LambdaQueryWrapper<LeaseAgreement>()
