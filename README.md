@@ -3,12 +3,12 @@
 > 深度融合 **Spring AI + DeepSeek 大模型** 的新一代长租公寓 SaaS 平台，支持 AI 智能找房、多条件语音/对话推荐、会话记忆与位置感知，覆盖房源管理、预约看房、在线签约、多渠支付、报修工单、租户画像全链路业务。
 
 # 前后端代码地址
+后端地址：https://gitee.com/huhao_666/cloud-apartment
 
-| 后端地址 | https://gitee.com/huhao_666/cloud-apartment |
+前端管理端地址：https://gitee.com/huhao_666/easy-to-choose-a-home---web
 
-| 前端管理端地址 | https://gitee.com/huhao_666/easy-to-choose-a-home---web |
+前端用户端地址：https://gitee.com/huhao_666/easy-to-choose-apartment---h5
 
-| 前端用户端地址 | https://gitee.com/huhao_666/easy-to-choose-apartment---h5 |
 
 ## 项目亮点
 
