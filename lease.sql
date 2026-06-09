@@ -1,7 +1,7 @@
 /*
  Navicat Premium Dump SQL
 
- Source Server         : vm
+ Source Server         : 192.168.10.101
  Source Server Type    : MySQL
  Source Server Version : 80039 (8.0.39)
  Source Host           : 192.168.10.101:3306
@@ -11,7 +11,7 @@
  Target Server Version : 80039 (8.0.39)
  File Encoding         : 65001
 
- Date: 12/05/2026 16:35:41
+ Date: 09/06/2026 10:24:00
 */
 
 SET NAMES utf8mb4;
@@ -5146,7 +5146,7 @@ INSERT INTO `lease_agreement` VALUES (46, '18190067037', '胡浩', '510681200302
 INSERT INTO `lease_agreement` VALUES (47, '18190067037', '胡浩', '51036547896541236', 145, 39, '2026-05-07', '2026-06-07', 1, 1500.00, 100.00, 6, 48, 1, 6, NULL, NULL, '2026-05-07 10:51:05', '2026-05-07 10:52:22', 0);
 INSERT INTO `lease_agreement` VALUES (48, '18190067037', '胡浩', '510681200302221835', 11, 19, '2026-05-12', '2026-06-13', 1, 100.00, 1500.00, 6, 49, 0, 6, NULL, NULL, '2026-05-12 14:48:38', '2026-05-12 14:51:19', 0);
 INSERT INTO `lease_agreement` VALUES (49, '18190067037', '胡浩', '510254785451232145', 11, 19, '2026-05-12', '2026-05-13', 1, 1500.00, 100.00, 6, 51, 1, 3, NULL, NULL, '2026-05-12 14:50:40', '2026-05-12 14:51:18', 0);
-INSERT INTO `lease_agreement` VALUES (50, '18190067037', '胡浩', '510681200302221835', 11, 19, '2026-05-12', '2026-06-16', 1, 1500.00, 100.00, 6, NULL, 0, 1, NULL, NULL, '2026-05-12 15:35:40', NULL, 0);
+INSERT INTO `lease_agreement` VALUES (50, '18190067037', '胡浩', '510681200302221835', 11, 19, '2026-05-12', '2026-06-16', 1, 1500.00, 100.00, 6, 54, 1, 6, NULL, NULL, '2026-05-12 15:35:40', '2026-05-13 13:42:15', 0);
 
 -- ----------------------------
 -- Table structure for lease_term
@@ -5192,7 +5192,7 @@ CREATE TABLE `payment_detail`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_payment_order`(`payment_order_id` ASC) USING BTREE COMMENT '支付订单ID索引',
   INDEX `idx_transaction_no`(`transaction_no` ASC) USING BTREE COMMENT '交易流水号索引'
-) ENGINE = InnoDB AUTO_INCREMENT = 39 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '支付明细表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 42 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '支付明细表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of payment_detail
@@ -5235,6 +5235,9 @@ INSERT INTO `payment_detail` VALUES (35, 48, 1, 1400.00, 1, 'ALI2026050710514358
 INSERT INTO `payment_detail` VALUES (36, 49, 1, 1500.00, 1, 'ALI20260512145051728307', '2026-05-12 14:50:52', 0.00, NULL, '2026-05-12 14:50:50', '2026-05-12 14:50:39', 0);
 INSERT INTO `payment_detail` VALUES (37, 50, 1, 100.00, 1, 'ALI20260512145059459308', '2026-05-12 14:51:00', 0.00, NULL, '2026-05-12 14:50:58', '2026-05-12 14:50:47', 0);
 INSERT INTO `payment_detail` VALUES (38, 51, 1, 1400.00, 1, 'ALI20260512145106975242', '2026-05-12 14:51:07', 0.00, NULL, '2026-05-12 14:51:05', '2026-05-12 14:50:54', 0);
+INSERT INTO `payment_detail` VALUES (39, 52, 1, 100.00, 1, 'ALI20260513134155571043', '2026-05-13 13:41:56', 0.00, NULL, '2026-05-13 13:41:54', '2026-05-13 13:41:43', 0);
+INSERT INTO `payment_detail` VALUES (40, 53, 1, 1400.00, 0, NULL, NULL, 0.00, NULL, '2026-05-13 13:41:57', '2026-05-13 13:41:45', 0);
+INSERT INTO `payment_detail` VALUES (41, 54, 1, 1400.00, 1, 'ALI20260513134203303854', '2026-05-13 13:42:03', 0.00, NULL, '2026-05-13 13:42:01', '2026-05-13 13:41:51', 0);
 
 -- ----------------------------
 -- Table structure for payment_order
@@ -5272,7 +5275,7 @@ CREATE TABLE `payment_order`  (
   UNIQUE INDEX `uk_payment_order_no`(`order_no` ASC) USING BTREE,
   INDEX `idx_payment_order_agreement`(`lease_agreement_id` ASC) USING BTREE,
   INDEX `idx_rent_bill_id`(`rent_bill_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 52 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '支付订单信息表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 55 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '支付订单信息表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of payment_order
@@ -5328,6 +5331,9 @@ INSERT INTO `payment_order` VALUES (48, 'PAY20260507105141403698', 47, 16, '2026
 INSERT INTO `payment_order` VALUES (49, 'PAY20260512145049819588', 48, 17, '2026-05-12', '租约支付-胡浩-第1期/2期', 1500.00, 1, 'UNIFIED', 1, 1, 1500.00, 0.00, 1500.00, 0.00, NULL, 0, 0.00, 0.00, NULL, '/mock/alipay/pay?orderNo=PAY20260512145049819588', 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=%2Fmock%2Falipay%2Fpay%3ForderNo%3DPAY20260512145049819588', '2026-05-12 14:50:52', NULL, '2026-05-12 14:50:49', '2026-05-12 14:50:37', 0);
 INSERT INTO `payment_order` VALUES (50, 'PAY20260512145058894727', 49, 19, '2026-05-12', '租约支付-胡浩-第1期/2期', 100.00, 1, 'UNIFIED', 1, 1, 100.00, 0.00, 100.00, 0.00, NULL, 0, 0.00, 0.00, NULL, '/mock/alipay/pay?orderNo=PAY20260512145058894727', 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=%2Fmock%2Falipay%2Fpay%3ForderNo%3DPAY20260512145058894727', '2026-05-12 14:51:00', NULL, '2026-05-12 14:50:58', '2026-05-12 14:50:46', 0);
 INSERT INTO `payment_order` VALUES (51, 'PAY20260512145105932753', 49, 20, '2026-05-12', '租约支付-胡浩-第2期/2期', 1400.00, 1, 'UNIFIED', 1, 2, 0.00, 1400.00, 1400.00, 0.00, NULL, 0, 0.00, 0.00, NULL, '/mock/alipay/pay?orderNo=PAY20260512145105932753', 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=%2Fmock%2Falipay%2Fpay%3ForderNo%3DPAY20260512145105932753', '2026-05-12 14:51:07', NULL, '2026-05-12 14:51:05', '2026-05-12 14:50:53', 0);
+INSERT INTO `payment_order` VALUES (52, 'PAY20260513134154436380', 50, 21, '2026-05-12', '租约支付-胡浩-第1期/2期', 100.00, 1, 'UNIFIED', 1, 1, 100.00, 0.00, 100.00, 0.00, NULL, 0, 0.00, 0.00, NULL, '/mock/alipay/pay?orderNo=PAY20260513134154436380', 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=%2Fmock%2Falipay%2Fpay%3ForderNo%3DPAY20260513134154436380', '2026-05-13 13:41:56', NULL, '2026-05-13 13:41:54', '2026-05-13 13:41:42', 0);
+INSERT INTO `payment_order` VALUES (53, 'PAY20260513134157624183', 50, 22, '2026-05-12', '租约支付-胡浩-第2期/2期', 1400.00, 0, 'UNIFIED', 1, 2, 0.00, 1400.00, 1400.00, 0.00, NULL, 0, 0.00, 0.00, NULL, '/mock/alipay/pay?orderNo=PAY20260513134157624183', 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=%2Fmock%2Falipay%2Fpay%3ForderNo%3DPAY20260513134157624183', NULL, NULL, '2026-05-13 13:41:57', '2026-05-13 13:41:45', 0);
+INSERT INTO `payment_order` VALUES (54, 'PAY20260513134201889596', 50, 22, '2026-05-12', '租约支付-胡浩-第2期/2期', 1400.00, 1, 'UNIFIED', 1, 2, 0.00, 1400.00, 1400.00, 0.00, NULL, 0, 0.00, 0.00, NULL, '/mock/alipay/pay?orderNo=PAY20260513134201889596', 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=%2Fmock%2Falipay%2Fpay%3ForderNo%3DPAY20260513134201889596', '2026-05-13 13:42:03', NULL, '2026-05-13 13:42:01', '2026-05-13 13:41:49', 0);
 
 -- ----------------------------
 -- Table structure for payment_type
@@ -5463,7 +5469,7 @@ CREATE TABLE `rent_bill`  (
   INDEX `idx_status`(`status` ASC) USING BTREE,
   INDEX `idx_due_date`(`due_date` ASC) USING BTREE,
   INDEX `idx_payment_order_id`(`payment_order_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 21 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '租金账单表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 23 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '租金账单表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of rent_bill
@@ -5486,6 +5492,8 @@ INSERT INTO `rent_bill` VALUES (17, 48, 1, 2, 1, '2026-05-12', '2026-05-12', 0, 
 INSERT INTO `rent_bill` VALUES (18, 48, 2, 2, 2, '2026-05-12', '2026-06-11', 1, 0.00, 0.00, 0.00, '2026-05-12', 0, NULL, NULL, '2026-05-12 14:50:47', '2026-05-12 14:50:35', 0);
 INSERT INTO `rent_bill` VALUES (19, 49, 1, 2, 1, '2026-05-12', '2026-05-12', 0, 0.00, 100.00, 100.00, '2026-05-12', 1, 50, '2026-05-12 14:51:00', '2026-05-12 14:50:56', '2026-05-12 14:50:44', 0);
 INSERT INTO `rent_bill` VALUES (20, 49, 2, 2, 2, '2026-05-12', '2026-05-13', 1, 1400.00, 0.00, 1400.00, '2026-05-12', 1, 51, '2026-05-12 14:51:07', '2026-05-12 14:50:56', '2026-05-12 14:50:44', 0);
+INSERT INTO `rent_bill` VALUES (21, 50, 1, 2, 1, '2026-05-12', '2026-05-12', 0, 0.00, 100.00, 100.00, '2026-05-12', 1, 52, '2026-05-13 13:41:56', '2026-05-13 13:41:53', '2026-05-13 13:41:40', 0);
+INSERT INTO `rent_bill` VALUES (22, 50, 2, 2, 2, '2026-05-12', '2026-06-11', 1, 1400.00, 0.00, 1400.00, '2026-05-12', 1, 54, '2026-05-13 13:42:03', '2026-05-13 13:41:53', '2026-05-13 13:41:40', 0);
 
 -- ----------------------------
 -- Table structure for repair_attachment
