@@ -24,7 +24,7 @@ spring:
       database: 0
   ai:
     openai:
-      api-key: sk-682717e6569a484b9ea9ffaf173c615c
+      api-key:
       base-url: https://api.deepseek.com
       chat:
         options:
@@ -46,6 +46,6 @@ minio:
   bucket-name: lease
 aliyun:
   sms:
-    access-key-id: LTAI5tCXKmgBeotmnKswDaEk
-    access-key-secret: AxkSBroHLrkzY4FshP9ZVruvnBmKK4
+    access-key-id:
+    access-key-secret:
     endpoint: dysmsapi.aliyuncs.com
